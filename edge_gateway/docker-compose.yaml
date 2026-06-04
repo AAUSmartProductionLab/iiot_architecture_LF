@@ -2,6 +2,7 @@ services:
   hivemq:
     image: hivemq/hivemq-ce:latest
     container_name: hivemq
+    hostname: hivemq
     restart: unless-stopped
     volumes:
       - ./broker/conf:/opt/hivemq/conf
