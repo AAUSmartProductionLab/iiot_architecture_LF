@@ -1,0 +1,20 @@
+services:
+  hivemq:
+    image: hivemq/hivemq-ce:latest
+    container_name: hivemq
+    restart: unless-stopped
+    volumes:
+      - ./broker/conf:/opt/hivemq/conf
+      - ./broker/extensions:/opt/hivemq/extensions
+      - hivemq_data:/opt/hivemq/data
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "8080:8080"
+
+volumes:
+  hivemq_data:
+
+networks:
+  default:
+    driver: bridge
