@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  HiveMQ MQTT Bridge Extension configuration — edge_server side.
+  The edge_server passively receives data from the edge_gateway via the gateway's bridge.
+  This config bridges the edge_server further upstream to a cloud broker (optional).
+
+  Topic flow:
+    edge_gateway → [gateway bridge] → edge_server → [this bridge] → cloud broker
+
+  Replace CLOUD_BROKER_HOST with the hostname/IP of your cloud MQTT broker.
+-->
+<mqtt-bridge>
+
+    <bridges>
+        <bridge>
+            <id>cloud-bridge</id>
+
+            <!-- Cloud/upstream broker -->
+            <host>CLOUD_BROKER_HOST</host>
+            <port>1883</port>
+            <client-id>edge-server-bridge</client-id>
+            <clean-start>true</clean-start>
+            <session-expiry-interval>0</session-expiry-interval>
+            <mqtt-version>MQTT_5</mqtt-version>
+            <keep-alive>60</keep-alive>
+            <connection-timeout>10</connection-timeout>
+            <reconnect-interval>5</reconnect-interval>
+
+            <!-- Uncomment and fill in if the cloud broker requires authentication
+            <username>edge-server-user</username>
+            <password>edge-server-password</password>
+            -->
+
+            <!-- Uncomment to enable TLS towards the cloud broker
+            <tls>
+                <enabled>true</enabled>
+            </tls>
+            -->
+
+            <!-- Forward the full UNS namespace up to the cloud.
+                 Topics already carry the UNS prefix applied by each gateway bridge,
+                 so no additional remapping is needed here. -->
+            <local-subscriptions>
+                <local-subscription>
+                    <filters>
+                        <mqtt-topic-filter>uns/#</mqtt-topic-filter>
+                    </filters>
+                    <max-qos>1</max-qos>
+                </local-subscription>
+            </local-subscriptions>
+
+            <!-- Pull commands from the cloud and let them propagate down.
+                 Each gateway's remote-subscription filters only its own subtree,
+                 so commands are automatically routed to the correct gateway. -->
+            <remote-subscriptions>
+                <remote-subscription>
+                    <filters>
+                        <mqtt-topic-filter>commands/#</mqtt-topic-filter>
+                    </filters>
+                    <max-qos>1</max-qos>
+                </remote-subscription>
+            </remote-subscriptions>
+
+        </bridge>
+    </bridges>
+
+</mqtt-bridge>

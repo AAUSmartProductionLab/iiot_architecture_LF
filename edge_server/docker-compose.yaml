@@ -1,0 +1,59 @@
+services:
+  timescale:
+    image: timescale/timescaledb:latest-pg17
+    container_name: timescale
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: "admin"
+      POSTGRES_DB: "postgres"
+    volumes:
+      - ts_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - db_network
+
+  # grafana:
+  #   image: grafana/grafana:latest
+  #   container_name: grafana
+  #   user: "472"
+  #   volumes:
+  #     - ./Grafana/grafana-data:/var/lib/grafana
+  #   environment:
+  #     - GF_SECURITY_ADMIN_PASSWORD=admin
+  #     - GF_USERS_ALLOW_SIGN_UP=false
+  #     - GF_PLUGINS_PREINSTALL=grafana-clock-panel,grafana-simple-json-datasource, volkovlabs-image-panel
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - db_network
+  #   depends_on:
+  #     - timescale
+  #   restart: unless-stopped
+
+  hivemq:
+    image: hivemq/hivemq-ce:latest
+    container_name: hivemq
+    hostname: hivemq
+    restart: unless-stopped
+    environment:
+      - JAVA_TOOL_OPTIONS=-Djava.rmi.server.hostname=127.0.0.1
+    volumes:
+      - ./broker/conf:/opt/hivemq/conf
+      - ./broker/extensions:/opt/hivemq/extensions
+      - hivemq_data:/opt/hivemq/data
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "8080:8080"
+    networks:
+      - db_network
+
+volumes:
+  ts_data:
+  grafana_data:
+  hivemq_data:
+
+networks:
+  db_network:
+    driver: bridge
