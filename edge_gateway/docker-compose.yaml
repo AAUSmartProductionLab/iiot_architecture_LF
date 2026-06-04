@@ -4,6 +4,8 @@ services:
     container_name: hivemq
     hostname: hivemq
     restart: unless-stopped
+    environment:
+      - JAVA_TOOL_OPTIONS=-Djava.rmi.server.hostname=127.0.0.1
     volumes:
       - ./broker/conf:/opt/hivemq/conf
       - ./broker/extensions:/opt/hivemq/extensions
