@@ -1,16 +1,4 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
-  HiveMQ Enterprise Bridge Extension configuration — edge_gateway side.
-  This broker (edge_gateway) initiates the connection to the edge_server broker.
-
-  Replace EDGE_SERVER_IP with the IP address or hostname of the edge_server machine.
-  Replace the UNS prefix segments (enterprise/site/area/line) to match your
-  Unified Namespace hierarchy for this specific gateway.
-
-  Topic flow (with UNS prefix applied on forward):
-    devices/sensor1/temp  →  edge_gateway  →  [bridge]  →  edge_server: uns/enterprise/site/area/line/sensor1/temp
-    commands/#            ←  edge_gateway  ←  [bridge]  ←  edge_server (scoped by gateway subtree)
--->
 <hivemq-bridge-extension xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                          xsi:noNamespaceSchemaLocation="config.xsd">
     <bridges>
@@ -18,17 +6,8 @@
             <name>edge-server-bridge</name>
 
             <remote-broker>
-                <!-- Uncomment and fill in if the edge_server broker requires authentication
-                <authentication>
-                    <mqtt-simple-authentication>
-                        <username>gateway-user</username>
-                        <password>gateway-password</password>
-                    </mqtt-simple-authentication>
-                </authentication>
-                -->
                 <connection>
                     <static>
-                        <!-- Replace with the IP address or hostname of the edge_server machine -->
                         <host>192.168.0.131</host>
                         <port>1883</port>
                     </static>
@@ -39,24 +18,14 @@
                     <session-expiry>0</session-expiry>
                     <version>5</version>
                 </mqtt>
-                <!-- Uncomment to enable TLS towards the edge_server broker
-                <tls>
-                    <enabled>true</enabled>
-                </tls>
-                -->
             </remote-broker>
 
             <topics>
-                <!-- Push local device/sensor data up to the edge_server with UNS prefix.
-                     devices/sensor1/temp  →  uns/enterprise/site/area/line/sensor1/temp
-                     Adjust the prefix segments to match this gateway's position in the hierarchy. -->
                 <topic>
                     <filter>devices/#</filter>
                     <mode>PUB</mode>
                     <destination>uns/enterprise/site/area/line/{#}</destination>
                 </topic>
-
-                <!-- Pull commands/config scoped to this gateway from the edge_server. -->
                 <topic>
                     <filter>commands/enterprise/site/area/line/#</filter>
                     <mode>SUB</mode>
