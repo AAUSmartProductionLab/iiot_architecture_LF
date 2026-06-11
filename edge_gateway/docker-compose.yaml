@@ -1,20 +1,22 @@
 services:
   hivemq:
-    image: hivemq/hivemq-ce:latest
+    image: hivemq/hivemq4:latest
     container_name: hivemq
     hostname: hivemq
     restart: unless-stopped
     environment:
       - JAVA_TOOL_OPTIONS=-Djava.rmi.server.hostname=127.0.0.1
       - HIVEMQ_ALLOW_ALL_CLIENTS=true
+      # Optional: Uncomment if you have a license. Otherwise, it runs in 25-connection trial mode.
+      # - HIVEMQ_LICENSE=your_base64_encoded_license_here
     volumes:
       - ./broker/conf:/opt/hivemq/conf
       - ./broker/extensions:/opt/hivemq/extensions
       - hivemq_data:/opt/hivemq/data
     ports:
-      - "1883:1883"
-      - "8083:8083"
-      - "8080:8080"
+      - "1883:1883"  # MQTT port
+      - "8083:8083"  # WebSockets port (if configured)
+      - "8080:8080"  # HiveMQ Control Center (Web UI)
 
 volumes:
   hivemq_data:
@@ -22,3 +24,4 @@ volumes:
 networks:
   default:
     driver: bridge
+
