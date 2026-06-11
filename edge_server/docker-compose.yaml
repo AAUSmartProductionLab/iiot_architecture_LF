@@ -32,12 +32,15 @@ services:
   #   restart: unless-stopped
 
   hivemq:
-    image: hivemq/hivemq-ce:latest
+    image: hivemq/hivemq4:latest
     container_name: hivemq
     hostname: hivemq
     restart: unless-stopped
     environment:
       - JAVA_TOOL_OPTIONS=-Djava.rmi.server.hostname=127.0.0.1
+      - HIVEMQ_ALLOW_ALL_CLIENTS=true
+      # Optional: Uncomment if you have a license. Otherwise, it runs in 25-connection trial mode.
+      # - HIVEMQ_LICENSE=your_base64_encoded_license_here
     volumes:
       - ./broker/conf:/opt/hivemq/conf
       - ./broker/extensions:/opt/hivemq/extensions
