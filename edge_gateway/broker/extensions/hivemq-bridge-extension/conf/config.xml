@@ -16,7 +16,6 @@
     <bridges>
         <bridge>
             <name>edge-server-bridge</name>
-            <client-identifier>gateway-bridge</client-identifier>
 
             <remote-broker>
                 <!-- Uncomment and fill in if the edge_server broker requires authentication
