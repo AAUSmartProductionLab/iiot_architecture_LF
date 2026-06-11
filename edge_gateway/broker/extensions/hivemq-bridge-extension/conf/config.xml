@@ -1,6 +1,6 @@
-<?xml version="1.0" encoding="UTF-8" ?>
+<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  HiveMQ MQTT Bridge Extension configuration — edge_gateway side.
+  HiveMQ Enterprise Bridge Extension configuration — edge_gateway side.
   This broker (edge_gateway) initiates the connection to the edge_server broker.
 
   Replace EDGE_SERVER_IP with the IP address or hostname of the edge_server machine.
@@ -9,66 +9,62 @@
 
   Topic flow (with UNS prefix applied on forward):
     devices/sensor1/temp  →  edge_gateway  →  [bridge]  →  edge_server: uns/enterprise/site/area/line/sensor1/temp
-    commands/#            ←  edge_gateway  ←  [bridge]  ←  edge_server (no prefix strip needed — scoped by gateway client-id)
-
-  The <destination> element remaps the topic when publishing to the remote broker.
-  {#} is substituted with the wildcard-matched portion of the original topic,
-  preserving the full device-level structure under the UNS prefix.
+    commands/#            ←  edge_gateway  ←  [bridge]  ←  edge_server (scoped by gateway subtree)
 -->
-<mqtt-bridge>
-
+<hivemq-bridge-extension xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                         xsi:noNamespaceSchemaLocation="config.xsd">
     <bridges>
         <bridge>
-            <id>edge-server-bridge</id>
+            <name>edge-server-bridge</name>
 
-            <!-- edge_server broker -->
-            <host>EDGE_SERVER_IP</host>
-            <port>1883</port>
-            <client-id>gateway-bridge</client-id>
-            <clean-start>true</clean-start>
-            <session-expiry-interval>0</session-expiry-interval>
-            <mqtt-version>MQTT_5</mqtt-version>
-            <keep-alive>60</keep-alive>
-            <connection-timeout>10</connection-timeout>
-            <reconnect-interval>5</reconnect-interval>
+            <remote-broker>
+                <!-- Uncomment and fill in if the edge_server broker requires authentication
+                <authentication>
+                    <mqtt-simple-authentication>
+                        <username>gateway-user</username>
+                        <password>gateway-password</password>
+                    </mqtt-simple-authentication>
+                </authentication>
+                -->
+                <connection>
+                    <static>
+                        <!-- Replace with the IP address or hostname of the edge_server machine -->
+                        <host>EDGE_SERVER_IP</host>
+                        <port>1883</port>
+                    </static>
+                </connection>
+                <mqtt>
+                    <client-identifier>gateway-bridge</client-identifier>
+                    <clean-start>true</clean-start>
+                    <keep-alive>60</keep-alive>
+                    <session-expiry>0</session-expiry>
+                    <version>MQTT_5</version>
+                </mqtt>
+                <!-- Uncomment to enable TLS towards the edge_server broker
+                <tls>
+                    <enabled>true</enabled>
+                </tls>
+                -->
+            </remote-broker>
 
-            <!-- Uncomment and fill in if the edge_server broker requires authentication
-            <username>gateway-user</username>
-            <password>gateway-password</password>
-            -->
-
-            <!-- Uncomment to enable TLS towards the edge_server broker
-            <tls>
-                <enabled>true</enabled>
-            </tls>
-            -->
-
-            <!-- Push local device/sensor data up to the edge_server with UNS prefix.
-                 devices/sensor1/temp  →  uns/enterprise/site/area/line/sensor1/temp
-                 Adjust the prefix segments to match this gateway's position in the hierarchy. -->
-            <local-subscriptions>
-                <local-subscription>
-                    <filters>
-                        <mqtt-topic-filter>devices/#</mqtt-topic-filter>
-                    </filters>
+            <topics>
+                <!-- Push local device/sensor data up to the edge_server with UNS prefix.
+                     devices/sensor1/temp  →  uns/enterprise/site/area/line/sensor1/temp
+                     Adjust the prefix segments to match this gateway's position in the hierarchy. -->
+                <topic>
+                    <filter>devices/#</filter>
+                    <mode>PUB</mode>
                     <destination>uns/enterprise/site/area/line/{#}</destination>
-                    <max-qos>1</max-qos>
-                </local-subscription>
-            </local-subscriptions>
+                </topic>
 
-            <!-- Pull commands/config scoped to this gateway from the edge_server.
-                 The gateway subscribes to its own subtree so commands from the
-                 edge_server are automatically routed to the right gateway. -->
-            <remote-subscriptions>
-                <remote-subscription>
-                    <filters>
-                        <mqtt-topic-filter>commands/enterprise/site/area/line/#</mqtt-topic-filter>
-                    </filters>
-                    <max-qos>1</max-qos>
-                </remote-subscription>
-            </remote-subscriptions>
+                <!-- Pull commands/config scoped to this gateway from the edge_server. -->
+                <topic>
+                    <filter>commands/enterprise/site/area/line/#</filter>
+                    <mode>SUB</mode>
+                </topic>
+            </topics>
 
         </bridge>
     </bridges>
 
-</mqtt-bridge>
+</hivemq-bridge-extension>
