@@ -29,7 +29,7 @@
                 <connection>
                     <static>
                         <!-- Replace with the IP address or hostname of the edge_server machine -->
-                        <host>EDGE_SERVER_IP</host>
+                        <host>192.168.0.131</host>
                         <port>1883</port>
                     </static>
                 </connection>
