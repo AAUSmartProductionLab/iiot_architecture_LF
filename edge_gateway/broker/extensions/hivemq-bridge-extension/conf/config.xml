@@ -16,6 +16,7 @@
     <bridges>
         <bridge>
             <name>edge-server-bridge</name>
+            <client-identifier>gateway-bridge</client-identifier>
 
             <remote-broker>
                 <!-- Uncomment and fill in if the edge_server broker requires authentication
@@ -34,11 +35,10 @@
                     </static>
                 </connection>
                 <mqtt>
-                    <client-identifier>gateway-bridge</client-identifier>
                     <clean-start>true</clean-start>
                     <keep-alive>60</keep-alive>
                     <session-expiry>0</session-expiry>
-                    <version>MQTT_5</version>
+                    <version>5</version>
                 </mqtt>
                 <!-- Uncomment to enable TLS towards the edge_server broker
                 <tls>
