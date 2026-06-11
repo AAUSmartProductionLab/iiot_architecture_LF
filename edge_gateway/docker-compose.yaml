@@ -6,6 +6,7 @@ services:
     restart: unless-stopped
     environment:
       - JAVA_TOOL_OPTIONS=-Djava.rmi.server.hostname=127.0.0.1
+      - HIVEMQ_ALLOW_ALL_CLIENTS=true
     volumes:
       - ./broker/conf:/opt/hivemq/conf
       - ./broker/extensions:/opt/hivemq/extensions
