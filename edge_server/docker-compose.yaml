@@ -110,6 +110,26 @@ services:
     networks:
       - db_network
 
+  # React + Vite control board, dev mode with hot-module reload.
+  # Source is bind-mounted; the browser (on the host) calls the orchestrator at
+  # VITE_API_BASE directly. node_modules is an anonymous volume so the host mount
+  # doesn't shadow the container's installed deps.
+  dashboard:
+    build:
+      context: ../web
+      dockerfile: Dockerfile.dev
+    image: iiot/dashboard-dev
+    container_name: dashboard
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ../web:/app
+      - /app/node_modules
+
 volumes:
   ts_data:
   grafana_data:
