@@ -1,0 +1,15 @@
+# Linux-only override: switch the server-agent to host networking so mDNS
+# multicast reaches the LAN (auto-discovery). Host mode ignores published ports
+# and shares the host stack, so BaSyx is reached via localhost.
+#
+# Usage (Linux):
+#   docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d
+#
+# Do NOT use on Windows/Mac Docker Desktop (host mode binds the VM, not the host).
+services:
+  server-agent:
+    network_mode: host
+    ports: !reset []
+    networks: !reset null
+    environment:
+      - BASYX_URL=http://localhost:8081

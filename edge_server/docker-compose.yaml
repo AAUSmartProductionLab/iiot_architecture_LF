@@ -83,6 +83,33 @@ services:
     networks:
       - db_network
 
+  # FastAPI central server: mDNS browse, AAS orchestration, dashboard API.
+  # DEFAULT = bridge networking + published port, so the API is reachable on
+  # any host incl. Windows/Mac Docker Desktop. mDNS auto-discovery does NOT work
+  # in bridge mode -> use POST /api/gateways/register, or run with the Linux
+  # host-networking override (docker-compose.host.yml) to enable mDNS.
+  server-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: iiot/server-agent
+    container_name: server-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - AGENT_PORT=8000
+      - BASYX_URL=http://aas-environment:8081
+      - AAS_BASE_URL=https://smart-production.aau.dk
+      - LIVENESS_INTERVAL=20
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - aas-environment
+      - hivemq
+    networks:
+      - db_network
+
 volumes:
   ts_data:
   grafana_data:
