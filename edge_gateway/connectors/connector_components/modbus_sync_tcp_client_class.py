@@ -28,7 +28,7 @@ class ModbusClient:
             print("Not connected to Modbus server.")
             return None
 
-        result = self.client.read_holding_registers(address, count)
+        result = self.client.read_holding_registers(address=address, count=count)
         
         if result is None or result.isError():
             print(f"Modbus error: {result}")
