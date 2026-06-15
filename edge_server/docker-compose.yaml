@@ -52,6 +52,37 @@ services:
     networks:
       - db_network
 
+  # Eclipse BaSyx v2 AAS Environment: aggregates the AAS, Submodel and
+  # ConceptDescription repositories into one component. Persistent source of
+  # truth for all semantic/AAS data. IDs are Base64URL-encoded in URLs.
+  aas-environment:
+    image: eclipsebasyx/aas-environment:2.0.0-SNAPSHOT
+    container_name: aas-environment
+    hostname: aas-environment
+    restart: unless-stopped
+    volumes:
+      - ./basyx/application.properties:/application/application.properties
+    ports:
+      - "8081:8081"  # REST API + Swagger UI (/swagger-ui/index.html)
+    networks:
+      - db_network
+
+  # Optional visual inspector for the AAS repository. Not required by the stack.
+  aas-gui:
+    image: eclipsebasyx/aas-gui:SNAPSHOT
+    container_name: aas-gui
+    restart: unless-stopped
+    environment:
+      - AAS_REPO_PATH=http://localhost:8081/shells
+      - SUBMODEL_REPO_PATH=http://localhost:8081/submodels
+      - CD_REPO_PATH=http://localhost:8081/concept-descriptions
+    ports:
+      - "8082:3000"  # avoids HiveMQ Control Center on host port 8080
+    depends_on:
+      - aas-environment
+    networks:
+      - db_network
+
 volumes:
   ts_data:
   grafana_data:
