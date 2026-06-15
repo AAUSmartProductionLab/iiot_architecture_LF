@@ -4,6 +4,6 @@ basyx/
 broker/
 docker-compose.yaml
 docker-compose.host.yml
-Dockerfile.agent
+Dockerfile.orchestrator
 Dockerfile.ingestor
 .dockerignore
