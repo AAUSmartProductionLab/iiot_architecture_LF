@@ -1,0 +1,15 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# App code. The broker config dir is bind-mounted at runtime so the agent's
+# edits land on the host file that HiveMQ also mounts.
+COPY agent ./agent
+COPY connectors ./connectors
+
+EXPOSE 8000
+
+CMD ["uvicorn", "agent.main:app", "--host", "0.0.0.0", "--port", "8000"]
