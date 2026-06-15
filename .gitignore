@@ -222,6 +222,10 @@ __marimo__/
 # Auto-generated, persisted gateway identity (per machine/install)
 **/agent_identity.json
 
+# Node / Vite (web dashboard)
+node_modules/
+web/dist/
+
 # Remove old LLM coding plans
 plan.md
 plan_refined.md

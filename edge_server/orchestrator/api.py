@@ -33,6 +33,12 @@ def _summarise(rec: dict) -> dict:
     }
 
 
+@router.get("/server-info")
+async def server_info():
+    """The server's own LAN IP — i.e. the broker address gateways bridge to."""
+    return {"server_ip": config.resolve_server_ip()}
+
+
 @router.get("/gateways")
 async def list_gateways():
     return [_summarise(r) for r in registry.list()]
@@ -111,6 +117,32 @@ async def register_gateway(req: RegisterReq):
     network = {"ip": req.ip, "port": req.port, "hostname": None, "gateway_id": gateway_id}
     await registration_service.register_gateway(manifest, network)
     return {"gateway_id": gateway_id, "status": "registered"}
+
+
+class ConfigureReq(BaseModel):
+    # Optional: defaults to the edge server's own IP (the broker gateways bridge to).
+    server_bridge_ip: str | None = None
+
+
+@router.post("/gateways/{gateway_id}/configure")
+async def configure_gateway(gateway_id: str, req: ConfigureReq):
+    """Proxy a bridge-IP configuration to the gateway (gateways have no CORS).
+
+    The bridge target is the edge server's own IP, so it defaults to that when
+    the caller doesn't supply one.
+    """
+    rec = registry.get(gateway_id)
+    if not rec or not rec.get("ip"):
+        raise HTTPException(status_code=404, detail="unknown or unreachable gateway")
+    bridge_ip = req.server_bridge_ip or config.resolve_server_ip()
+    url = f"http://{rec['ip']}:{rec['port']}/api/configure"
+    async with httpx.AsyncClient(timeout=config.HTTP_TIMEOUT) as client:
+        try:
+            r = await client.post(url, json={"server_bridge_ip": bridge_ip})
+            r.raise_for_status()
+            return r.json()
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=502, detail=f"gateway configure failed: {e}")
 
 
 class ProvisionReq(BaseModel):
