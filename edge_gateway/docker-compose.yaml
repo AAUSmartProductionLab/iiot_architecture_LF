@@ -18,8 +18,41 @@ services:
       - "8083:8083"  # WebSockets port (if configured)
       - "8080:8080"  # HiveMQ Control Center (Web UI)
 
+  # FastAPI gateway agent: mDNS advertise + manifest/configure/connectors API.
+  # DEFAULT = bridge networking + published port, so the API is reachable on
+  # any host incl. Windows/Mac. mDNS advertise does NOT escape the bridge -> on
+  # Windows register the gateway via the server's POST /api/gateways/register;
+  # on Linux use the host-networking override (docker-compose.host.yml) for mDNS.
+  gateway-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: iiot/gateway-agent
+    container_name: gateway-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - AGENT_PORT=8000
+      - IDENTITY_FILE=/data/agent_identity.json
+      - BRIDGE_CONFIG_PATH=/app/broker/extensions/hivemq-bridge-extension/conf/config.xml
+      - HIVEMQ_CONTAINER=hivemq
+      # Optional overrides for real hardware:
+      # - GATEWAY_ID=...
+      # - SERIAL_NUMBER=...
+      # - MANUFACTURER=...
+      # - HARDWARE_MODEL=...
+      # - FIRMWARE_VERSION=...
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # restart hivemq after bridge re-template
+      - ./broker:/app/broker                         # edits to bridge config reach hivemq
+      - gateway_identity:/data                        # stable identity across recreation
+    depends_on:
+      - hivemq
+
 volumes:
   hivemq_data:
+  gateway_identity:
 
 networks:
   default:
