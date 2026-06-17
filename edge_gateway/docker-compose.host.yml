@@ -9,3 +9,4 @@ services:
   gateway-agent:
     network_mode: host
     ports: !reset []
+    networks: !reset null

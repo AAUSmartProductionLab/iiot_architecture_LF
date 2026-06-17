@@ -1,0 +1,13 @@
+# One image for all protocol adapters. The gateway-agent launches a container
+# from it per connector, passing CONNECTOR_CONFIG; Connector picks the client by
+# protocol (S7, Modbus, …).
+FROM python:3.11-slim
+
+WORKDIR /app
+
+COPY connectors/requirements-adapter.txt .
+RUN pip install --no-cache-dir -r requirements-adapter.txt
+
+COPY connectors ./connectors
+
+CMD ["python", "-m", "connectors.run_adapter"]

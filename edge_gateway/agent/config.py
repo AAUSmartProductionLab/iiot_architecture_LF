@@ -27,5 +27,16 @@ LOCAL_BASE_TOPIC = os.getenv("LOCAL_BASE_TOPIC", "devices")
 # UNS prefix the bridge remaps local `devices/...` topics onto, on the server.
 UNS_PREFIX = os.getenv("UNS_PREFIX", "uns/enterprise/site/area/line")
 
-# Southbound protocols this gateway can adapt (only modbus-tcp wired for the MVD).
-SUPPORTED_ADAPTERS = ["modbus-tcp"]
+# The gateway is protocol-agnostic: the protocol is chosen per connector at
+# provisioning time, not constrained here (and never advertised over mDNS).
+# This list is informational only.
+SUPPORTED_ADAPTERS = ["modbus-tcp", "opcua", "s7", "usb"]
+
+# --- protocol adapter containers (managed by the agent via the Docker socket) ---
+# When enabled, provisioning a connector launches one adapter container per device.
+ADAPTER_AUTOSTART = os.getenv("ADAPTER_AUTOSTART", "false").lower() == "true"
+ADAPTER_IMAGE = os.getenv("ADAPTER_IMAGE", "iiot/connector-adapter")
+ADAPTER_NETWORK = os.getenv("ADAPTER_NETWORK")  # docker network linking adapter<->device<->broker
+# The local broker the adapter publishes to (reachable on ADAPTER_NETWORK).
+ADAPTER_BROKER_HOST = os.getenv("ADAPTER_BROKER_HOST", "gw-broker")
+ADAPTER_BROKER_PORT = int(os.getenv("ADAPTER_BROKER_PORT", "1883"))

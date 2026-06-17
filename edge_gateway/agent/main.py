@@ -8,12 +8,13 @@ uvicorn agent.main:app --port 8000 (cwd = edge_gateway/).
 import asyncio
 import logging
 import re
+import uuid
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from . import bridge_config, config, manifest
+from . import adapters, bridge_config, config, manifest
 from .discovery import Advertiser
 
 logging.basicConfig(level=logging.INFO)
@@ -60,9 +61,9 @@ async def configure(req: ConfigureReq):
 
 class ConnectorReq(BaseModel):
     device_id: str | None = None
-    protocol: str = "modbus-tcp"
-    address: dict = {}
-    datapoints: list = []
+    protocol: str  # e.g. modbus-tcp, opcua, s7, usb — gateway is protocol-agnostic
+    connection: dict = {}  # protocol connection params (host/port, endpoint_url, …)
+    datapoints: list = []  # each: {name, datatype, unit, local_topic, address:{…}}
     # Optional real-world device identity (flows into the device Digital Nameplate).
     manufacturer: str | None = None
     model: str | None = None
@@ -72,26 +73,28 @@ class ConnectorReq(BaseModel):
 def _device_key(req: "ConnectorReq") -> str:
     if req.device_id:
         return re.sub(r"[^A-Za-z0-9_.-]", "-", req.device_id)
-    a = req.address or {}
-    return f"{req.protocol}-unit{a.get('unit_id', 'x')}-{a.get('register', 'x')}"
+    return f"{req.protocol}-{uuid.uuid4().hex[:8]}"
 
 
 @app.post("/api/connectors", status_code=201)
 async def add_connector(req: ConnectorReq):
     """Declare a device/connector on this gateway (idempotent by device_key).
 
-    Phase 1-3 only records the configuration (so it appears in the manifest and
-    drives AAS creation). The live Modbus->MQTT loop is implemented in Phase 6.
+    Protocol-agnostic: the gateway stores whatever connection/datapoint params it
+    is given. The live protocol->MQTT loop is implemented in Phase 6.
     """
     device_key = _device_key(req)
     descriptor = {
         "device_key": device_key,
         "device_id": req.device_id or device_key,
         "protocol": req.protocol,
-        "address": req.address,
+        "connection": req.connection,
         "datapoints": req.datapoints,
         "manufacturer": req.manufacturer,
         "model": req.model,
         "serial_number": req.serial_number,
     }
-    return manifest.upsert_connector(descriptor)
+    manifest.upsert_connector(descriptor)
+    # Launch the protocol->MQTT adapter container (no-op if autostart disabled).
+    adapter_started = await asyncio.to_thread(adapters.start_adapter, descriptor)
+    return {**descriptor, "adapter_started": adapter_started}

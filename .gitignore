@@ -226,6 +226,10 @@ __marimo__/
 node_modules/
 web/dist/
 
+# HiveMQ runtime artifacts (must not be committed; DISABLED would disable the extension)
+**/hivemq-bridge-extension/DISABLED
+**/hivemq-bridge-extension/bridge.id
+
 # Remove old LLM coding plans
 plan.md
 plan_refined.md

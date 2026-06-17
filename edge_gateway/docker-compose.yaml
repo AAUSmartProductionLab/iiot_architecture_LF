@@ -17,12 +17,14 @@ services:
       - "1883:1883"  # MQTT port
       - "8083:8083"  # WebSockets port (if configured)
       - "8080:8080"  # HiveMQ Control Center (Web UI)
+    networks:
+      - gateway-net
 
-  # FastAPI gateway agent: mDNS advertise + manifest/configure/connectors API.
-  # DEFAULT = bridge networking + published port, so the API is reachable on
-  # any host incl. Windows/Mac. mDNS advertise does NOT escape the bridge -> on
-  # Windows register the gateway via the server's POST /api/gateways/register;
-  # on Linux use the host-networking override (docker-compose.host.yml) for mDNS.
+  # FastAPI gateway agent: mDNS advertise + manifest/configure/connectors API,
+  # and launches one protocol-adapter container per connector via the Docker
+  # socket (onto gateway-net so adapters reach the broker + devices).
+  # DEFAULT = bridge networking + published port (API reachable on any host).
+  # mDNS advertise needs the Linux host-networking override (docker-compose.host.yml).
   gateway-agent:
     build:
       context: .
@@ -37,6 +39,12 @@ services:
       - IDENTITY_FILE=/data/agent_identity.json
       - BRIDGE_CONFIG_PATH=/app/broker/extensions/hivemq-bridge-extension/conf/config.xml
       - HIVEMQ_CONTAINER=hivemq
+      # Adapter containers (protocol -> MQTT), launched per connector:
+      - ADAPTER_AUTOSTART=true
+      - ADAPTER_IMAGE=iiot/connector-adapter
+      - ADAPTER_NETWORK=gateway-net
+      - ADAPTER_BROKER_HOST=hivemq
+      - ADAPTER_BROKER_PORT=1883
       # Optional overrides for real hardware:
       # - GATEWAY_ID=...
       # - SERIAL_NUMBER=...
@@ -44,17 +52,41 @@ services:
       # - HARDWARE_MODEL=...
       # - FIRMWARE_VERSION=...
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock   # restart hivemq after bridge re-template
+      - /var/run/docker.sock:/var/run/docker.sock   # manage adapters + restart hivemq
       - ./broker:/app/broker                         # edits to bridge config reach hivemq
       - gateway_identity:/data                        # stable identity across recreation
     depends_on:
       - hivemq
+    networks:
+      - gateway-net
+
+  # Build-only: the image the gateway-agent runs per connector. Built by
+  # `docker compose build`; never started as a long-lived service.
+  connector-adapter:
+    build:
+      context: .
+      dockerfile: Dockerfile.adapter
+    image: iiot/connector-adapter
+    profiles: ["build"]
+    command: ["true"]
+
+  # Optional S7 PLC simulator for testing (snap7 server with a temperature DB).
+  # Start with:  docker compose --profile sim up -d
+  s7-sim:
+    build:
+      context: ./simulators/s7
+    image: iiot/s7-sim
+    container_name: s7-sim
+    restart: unless-stopped
+    profiles: ["sim"]
+    networks:
+      - gateway-net
 
 volumes:
   hivemq_data:
   gateway_identity:
 
 networks:
-  default:
+  gateway-net:
+    name: gateway-net
     driver: bridge
-

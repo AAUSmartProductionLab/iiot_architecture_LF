@@ -35,7 +35,17 @@ class ModbusClient:
             return None
         
         return result.registers
-    
+
+    def read_datapoint(self, dp):
+        """Generic read used by Connector. dp['address'] = {register, quantity}."""
+        a = dp.get("address", {}) or {}
+        registers = self.read_holding_registers(
+            int(a.get("register", 0)), int(a.get("quantity", 1))
+        )
+        if registers is None:
+            return None
+        return registers[0] if len(registers) == 1 else registers
+
     def disconnect(self):
         self.client.close()
         self.connected = False
