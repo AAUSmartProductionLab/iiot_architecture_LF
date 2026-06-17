@@ -11,10 +11,10 @@ from pymodbus.datastore import (
 
 # Create data store
 store = ModbusDeviceContext(
-    di=ModbusSequentialDataBlock(1, [0]*100),  # Discrete Inputs
-    co=ModbusSequentialDataBlock(1, [0]*100),  # Coils
-    hr=ModbusSequentialDataBlock(1, [0]*100),  # Holding Registers
-    ir=ModbusSequentialDataBlock(1, [0]*100),  # Input Registers
+    di=ModbusSequentialDataBlock(1, [1,0]*50),  # Discrete Inputs
+    co=ModbusSequentialDataBlock(1, [0,1]*50),  # Coils
+    hr=ModbusSequentialDataBlock(1, range(1,100)),  # Holding Registers
+    ir=ModbusSequentialDataBlock(1, range(1,100)),  # Input Registers
 )
 
 context = ModbusServerContext(devices=store, single=True)
@@ -24,7 +24,7 @@ try:
     print("Starting Modbus Server...")
     StartTcpServer(
         context,
-        address=("127.0.0.1", 5020)
+        address=("127.0.0.1", 502)
     )
 except KeyboardInterrupt:
     print("Shutting down server...")
