@@ -23,12 +23,27 @@ class ModbusClient:
             self.connected = False
             print("Failed to connect.")
 
-    def read_holding_registers(self, address, count):
+    def read(self, func_code, reg_address, count):
+        """Carry out a read function."""
+        if func_code == "FC1":
+            """Read Output Coils."""
+        elif func_code == "FC2":
+            """Read Input Coils"""
+        elif func_code == "FC3":
+            """Read Holding Registers"""
+            self.read_holding_registers(reg_address=reg_address, count=count)
+        elif func_code == "FC4":
+            """Read Input Registers"""
+        else:
+            """Give en fejl."""
+            print("Not a valid read function code.")
+
+    def read_holding_registers(self, reg_address, count):
         if not self.connected:
             print("Not connected to Modbus server.")
             return None
 
-        result = self.client.read_holding_registers(address=address, count=count)
+        result = self.client.read_holding_registers(address=reg_address, count=count)
         
         if result is None or result.isError():
             print(f"Modbus error: {result}")
