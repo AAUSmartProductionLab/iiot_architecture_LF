@@ -17,6 +17,10 @@ AGENT_PORT = int(os.getenv("AGENT_PORT", "8000"))
 # Timeout for outbound HTTP (manifest fetch, BaSyx calls).
 HTTP_TIMEOUT = float(os.getenv("HTTP_TIMEOUT", "5.0"))
 
+# TimescaleDB (read-only, for the dashboard's latest-value display). The
+# measurements endpoint degrades to [] if the DB is unreachable.
+TS_DSN = os.getenv("TS_DSN", "postgresql://postgres:admin@localhost:5432/postgres")
+
 # Liveness health-poll cadence (seconds). User-tunable; default 20s.
 # (A future enhancement exposes this via the API for runtime control.)
 LIVENESS_INTERVAL = float(os.getenv("LIVENESS_INTERVAL", "20"))

@@ -1,4 +1,4 @@
-import type { AasBundle, Device, Gateway } from "./types";
+import type { AasBundle, Device, Gateway, Measurement } from "./types";
 
 export const BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) || "http://localhost:8000";
@@ -32,6 +32,9 @@ export const api = {
   devices: () => req<Device[]>("/api/devices"),
   gatewayAas: (id: string) =>
     req<AasBundle>(`/api/gateways/${encodeURIComponent(id)}/aas`),
+  aasById: (aasId: string) =>
+    req<AasBundle>(`/api/aas?id=${encodeURIComponent(aasId)}`),
+  measurementsLatest: () => req<Measurement[]>("/api/measurements/latest"),
   registerGateway: (ip: string, port: number) =>
     req("/api/gateways/register", {
       method: "POST",

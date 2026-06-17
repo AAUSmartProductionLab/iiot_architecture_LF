@@ -4,3 +4,4 @@ zeroconf
 httpx
 basyx-python-sdk>=2.0
 docker
+psycopg[binary]

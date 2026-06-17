@@ -39,16 +39,45 @@ body {
   color: var(--text);
 }
 
-.app { max-width: 1100px; margin: 0 auto; padding: 24px; }
-header h1 { margin: 0 0 4px; font-size: 22px; }
-header .sub { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
-
-.nav { display: flex; gap: 8px; margin-bottom: 16px; }
-.nav button {
-  background: var(--panel); color: var(--text); border: 1px solid var(--border);
-  padding: 8px 14px; border-radius: 6px; cursor: pointer;
+/* sidebar layout */
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 220px; flex-shrink: 0; background: var(--panel);
+  border-right: 1px solid var(--border); padding: 18px 14px;
+  display: flex; flex-direction: column; gap: 18px; position: sticky; top: 0; height: 100vh;
 }
-.nav button.active { background: var(--accent); border-color: var(--accent); }
+.sidebar .brand { font-size: 16px; font-weight: 700; }
+.sidebar nav { display: flex; flex-direction: column; gap: 6px; }
+.sidebar nav button {
+  text-align: left; background: transparent; color: var(--text);
+  border: 1px solid transparent; padding: 9px 12px; border-radius: 6px; cursor: pointer; font-size: 14px;
+}
+.sidebar nav button:hover { background: var(--panel-2); }
+.sidebar nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.sidebar-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.small { font-size: 11px; }
+.main { flex: 1; padding: 24px; max-width: 1100px; }
+
+/* AAS explorer */
+.explorer { display: flex; gap: 16px; align-items: flex-start; }
+.explorer .tree { width: 280px; flex-shrink: 0; }
+.explorer .detail { flex: 1; }
+.tree-group { margin-bottom: 6px; }
+.tree-item { padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+.tree-item.child { margin-left: 16px; font-size: 13px; }
+.tree-item:hover { background: var(--panel-2); }
+.tree-item.selected { background: var(--panel-2); border-left: 2px solid var(--accent); }
+
+.lifecycle { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; font-size: 13px; }
+.pill { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
+.pill.ok { background: #16301c; color: #aee9b8; }
+.pill.bad { background: #3a1d1d; color: #ffb4ac; }
+
+section { margin: 14px 0; }
+section h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+dl.kv { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; margin: 0; font-size: 14px; }
+dl.kv dt { color: var(--muted); }
+dl.kv dd { margin: 0; }
 
 .card {
   background: var(--panel); border: 1px solid var(--border);

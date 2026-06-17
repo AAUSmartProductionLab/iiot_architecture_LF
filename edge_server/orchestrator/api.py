@@ -11,7 +11,7 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from . import config
+from . import config, measurements
 from .aas import ids
 from .basyx_client import fetch_shell_with_submodels
 from .registration_service import registration_service
@@ -56,6 +56,23 @@ async def gateway_aas(gateway_id: str):
         if e.response.status_code == 404:
             raise HTTPException(status_code=404, detail="AAS not found in BaSyx")
         raise HTTPException(status_code=502, detail=f"BaSyx error: {e}")
+
+
+@router.get("/aas")
+async def aas_by_id(id: str):
+    """Proxy any shell + its submodels from BaSyx by AAS id (gateway or device)."""
+    try:
+        return await fetch_shell_with_submodels(id)
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            raise HTTPException(status_code=404, detail="AAS not found in BaSyx")
+        raise HTTPException(status_code=502, detail=f"BaSyx error: {e}")
+
+
+@router.get("/measurements/latest")
+async def measurements_latest():
+    """Latest ingested value per device/datapoint (from TimescaleDB)."""
+    return measurements.latest()
 
 
 @router.get("/devices")

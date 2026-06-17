@@ -32,3 +32,12 @@ export interface AasBundle {
   shell: any;
   submodels: any[];
 }
+
+export interface Measurement {
+  device: string;
+  datapoint: string;
+  value: number | null;
+  unit: string | null;
+  time: string | null;
+  topic: string | null;
+}
