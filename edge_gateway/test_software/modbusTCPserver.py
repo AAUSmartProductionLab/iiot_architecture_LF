@@ -13,8 +13,8 @@ from pymodbus.datastore import (
 store = ModbusDeviceContext(
     di=ModbusSequentialDataBlock(1, [1,0]*50),  # Discrete Inputs
     co=ModbusSequentialDataBlock(1, [0,1]*50),  # Coils
-    hr=ModbusSequentialDataBlock(1, range(1,100)),  # Holding Registers
-    ir=ModbusSequentialDataBlock(1, range(1,100)),  # Input Registers
+    hr=ModbusSequentialDataBlock(1, list(range(1,100))),  # Holding Registers
+    ir=ModbusSequentialDataBlock(1, list(range(1,100))),  # Input Registers
 )
 
 context = ModbusServerContext(devices=store, single=True)
