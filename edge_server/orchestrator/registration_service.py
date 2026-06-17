@@ -90,7 +90,7 @@ class RegistrationService:
             datapoints=datapoints,
             mqtt=mqtt,
             protocol=connector.get("protocol", ""),
-            address=connector.get("address", {}),
+            connection=connector.get("connection", {}),
         )
         hs = self.hs.build_device(
             dsys,

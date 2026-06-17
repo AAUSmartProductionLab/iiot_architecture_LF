@@ -148,9 +148,9 @@ async def configure_gateway(gateway_id: str, req: ConfigureReq):
 class ProvisionReq(BaseModel):
     gateway_id: str
     device_id: str
-    protocol: str = "modbus-tcp"
-    address: dict = {}
-    datapoints: list = []
+    protocol: str  # modbus-tcp, opcua, s7, usb, …
+    connection: dict = {}  # protocol connection params
+    datapoints: list = []  # each: {name, datatype, unit, local_topic, address:{…}}
     # Optional real-world device identity (flows into the device Digital Nameplate).
     manufacturer: str | None = None
     model: str | None = None

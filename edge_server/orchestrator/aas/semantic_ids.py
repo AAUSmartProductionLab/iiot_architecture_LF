@@ -133,6 +133,22 @@ class SemanticIdFactory:
     def NETWORK_ADDRESS(self) -> model.ExternalReference:
         return self.create_external_reference(self._NETWORK_ADDRESS)
 
+    # Map a protocol id to a binding semanticId where a standard one exists,
+    # else None (the interface still carries the WoT Thing Description id).
+    _PROTOCOL_IRIS = {
+        "modbus": _MODBUS_PROTOCOL,
+        "mqtt": _MQTT_PROTOCOL,
+        "http": _HTTP_PROTOCOL,
+        "opc": "https://www.w3.org/2019/wot/opcua",
+    }
+
+    def protocol_semantic(self, protocol: str):
+        p = (protocol or "").lower()
+        for key, iri in self._PROTOCOL_IRIS.items():
+            if p.startswith(key):
+                return self.create_external_reference(iri)
+        return None
+
     # --- helpers ---
     @staticmethod
     def create_external_reference(semantic_id: str) -> model.ExternalReference:
