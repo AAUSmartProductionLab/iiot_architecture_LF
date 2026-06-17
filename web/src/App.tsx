@@ -9,9 +9,18 @@ import { DeviceList } from "./components/DeviceList";
 const POLL_MS = 4000;
 
 type View = "gateways" | "devices";
+type Theme = "dark" | "light";
 
 export default function App() {
   const [view, setView] = useState<View>("gateways");
+  const [theme, setTheme] = useState<Theme>(
+    () => (localStorage.getItem("theme") as Theme) || "dark"
+  );
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("theme", theme);
+  }, [theme]);
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -38,11 +47,19 @@ export default function App() {
 
   return (
     <div className="app">
-      <header>
-        <h1>IIoT Control Board</h1>
-        <div className="sub">
-          orchestrator: <code>{BASE}</code> · auto-refresh {POLL_MS / 1000}s
+      <header className="topbar">
+        <div>
+          <h1>IIoT Control Board</h1>
+          <div className="sub">
+            orchestrator: <code>{BASE}</code> · auto-refresh {POLL_MS / 1000}s
+          </div>
         </div>
+        <button
+          className="theme-toggle"
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          {theme === "dark" ? "☀ Light" : "🌙 Dark"}
+        </button>
       </header>
 
       <div className="nav">
