@@ -130,6 +130,30 @@ services:
       - ../web:/app
       - /app/node_modules
 
+  # Event-driven TimescaleDB ingestion: subscribes to uns/# (all device data,
+  # no broker restart on new devices) + BaSyx submodel events (to learn each
+  # topic's device/datapoint/unit), and writes to the measurements hypertable.
+  timescale-ingestor:
+    build:
+      context: .
+      dockerfile: Dockerfile.ingestor
+    image: iiot/ingestor
+    container_name: timescale-ingestor
+    restart: unless-stopped
+    environment:
+      - BROKER_HOST=hivemq
+      - BROKER_PORT=1883
+      - BASYX_URL=http://aas-environment:8081
+      - TS_DSN=postgresql://postgres:admin@timescale:5432/postgres
+      - DATA_TOPIC=uns/#
+      - EVENT_TOPIC=sm-repository/#
+    depends_on:
+      - hivemq
+      - timescale
+      - aas-environment
+    networks:
+      - db_network
+
 volumes:
   ts_data:
   grafana_data:
