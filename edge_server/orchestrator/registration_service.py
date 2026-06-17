@@ -24,15 +24,16 @@ from .basyx_client import upsert_shell, upsert_submodel
 log = logging.getLogger("registration")
 
 
-def _uns_topic(local_topic: str, base_topic: str, uns_prefix: str) -> str:
-    """Mirror the HiveMQ bridge remap: devices/<x> -> <uns_prefix>/<x>."""
+def _uns_topic(local_topic: str, uns_prefix: str) -> str:
+    """Mirror the HiveMQ bridge remap exactly.
+
+    The bridge filter `devices/#` -> destination `<uns_prefix>/{#}` substitutes
+    the FULL local topic for {#}, so `devices/line1/temp` becomes
+    `<uns_prefix>/devices/line1/temp` (the `devices/` segment is kept).
+    """
     if not local_topic:
         return ""
-    if base_topic and local_topic.startswith(base_topic + "/"):
-        suffix = local_topic[len(base_topic) + 1:]
-    else:
-        suffix = local_topic
-    return f"{uns_prefix}/{suffix}" if uns_prefix else suffix
+    return f"{uns_prefix}/{local_topic}" if uns_prefix else local_topic
 
 
 class RegistrationService:
@@ -62,7 +63,7 @@ class RegistrationService:
             dp = dict(dp)
             dp.setdefault(
                 "uns_topic",
-                _uns_topic(dp.get("local_topic", ""), mqtt["base_topic"], mqtt["uns_prefix"]),
+                _uns_topic(dp.get("local_topic", ""), mqtt["uns_prefix"]),
             )
             out.append(dp)
         return out
