@@ -10,8 +10,8 @@ from connector_components.opc_ua_client import AsyncOPCUAClient  # adjust import
 # -------------------------
 # Configuration
 # -------------------------
-OPC_URL = "opc.tcp://MartinPC:53530/OPCUA/SimulationServer"
-TEST_NODE = "ns=3;i=1001"   # change to a valid node on your server
+OPC_URL = "opc.tcp://MartinPCgit add .:53530/OPCUA/SimulationServer"
+TEST_NODE = "ns=3;i=1001" 
 
 
 # -------------------------
