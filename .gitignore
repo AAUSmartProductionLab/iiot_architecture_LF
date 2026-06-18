@@ -233,3 +233,5 @@ web/dist/
 # Remove old LLM coding plans
 plan.md
 plan_refined.md
+
+settings.json
