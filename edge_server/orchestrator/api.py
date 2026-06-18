@@ -153,7 +153,8 @@ async def configure_gateway(gateway_id: str, req: ConfigureReq):
         raise HTTPException(status_code=404, detail="unknown or unreachable gateway")
     bridge_ip = req.server_bridge_ip or config.resolve_server_ip()
     url = f"http://{rec['ip']}:{rec['port']}/api/configure"
-    async with httpx.AsyncClient(timeout=config.HTTP_TIMEOUT) as client:
+    # Configure restarts the HiveMQ broker (~10-15s), so allow a generous timeout.
+    async with httpx.AsyncClient(timeout=45.0) as client:
         try:
             r = await client.post(url, json={"server_bridge_ip": bridge_ip})
             r.raise_for_status()
