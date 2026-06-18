@@ -55,4 +55,3 @@ class ModbusClient:
         self.client.close()
         self.connected = False
         print("Disconnected from modbus server.")
-    
