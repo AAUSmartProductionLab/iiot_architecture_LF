@@ -40,3 +40,7 @@ ADAPTER_NETWORK = os.getenv("ADAPTER_NETWORK")  # docker network linking adapter
 # The local broker the adapter publishes to (reachable on ADAPTER_NETWORK).
 ADAPTER_BROKER_HOST = os.getenv("ADAPTER_BROKER_HOST", "gw-broker")
 ADAPTER_BROKER_PORT = int(os.getenv("ADAPTER_BROKER_PORT", "1883"))
+
+# Periodically restart the HiveMQ container to reset the Enterprise Bridge
+# Extension's 5-hour trial (restart every N hours, < 5). 0 disables.
+BRIDGE_RESTART_HOURS = float(os.getenv("BRIDGE_RESTART_HOURS", "4"))

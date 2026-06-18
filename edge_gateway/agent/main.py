@@ -23,11 +23,24 @@ log = logging.getLogger("gateway-agent")
 advertiser = Advertiser(config.GATEWAY_ID, config.AGENT_PORT)
 
 
+async def _periodic_broker_restart():
+    """Restart HiveMQ every BRIDGE_RESTART_HOURS to reset the bridge trial."""
+    interval = config.BRIDGE_RESTART_HOURS * 3600
+    if interval <= 0:
+        return
+    while True:
+        await asyncio.sleep(interval)
+        log.info("periodic HiveMQ restart (every %sh) to reset the bridge trial", config.BRIDGE_RESTART_HOURS)
+        await asyncio.to_thread(bridge_config.restart_broker)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await advertiser.start()
     log.info("advertising %s on mDNS (port %s)", config.GATEWAY_ID, config.AGENT_PORT)
+    restart_task = asyncio.create_task(_periodic_broker_restart())
     yield
+    restart_task.cancel()
     await advertiser.stop()
     log.info("stopped advertising %s", config.GATEWAY_ID)
 

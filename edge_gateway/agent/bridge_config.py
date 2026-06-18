@@ -44,6 +44,15 @@ def _rewrite_host(server_ip: str) -> bool:
     return True
 
 
+def restart_broker() -> bool:
+    """Restart the HiveMQ container without touching config.
+
+    Used on a timer to reset the HiveMQ Enterprise Bridge Extension's 5-hour
+    trial (each restart re-enters trial mode), keeping the bridge alive.
+    """
+    return _restart_hivemq()
+
+
 def _restart_hivemq() -> bool:
     try:
         import docker
