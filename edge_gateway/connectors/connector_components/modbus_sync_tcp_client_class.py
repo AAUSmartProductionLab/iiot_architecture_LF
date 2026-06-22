@@ -108,18 +108,29 @@ class AsyncModbusClient:
         Returns a dictionary: data = {  "register1" : value1,
                                         "register2" : value2, ...} 
         """
-        if args["type"] == "coil":
+        
+        reg_type = args["type"]
+        address = args.get("reg_address", 1)
+        count = args.get("count", 1)
+
+        
+        if reg_type == "coil":
             """Read Output Coils."""
-            return await self._read_coils(reg_address=args.get("reg_address", 1), count=args.get("count", 1))
-        elif args["type"] == "discrete":
+            data = await self._read_coils(reg_address=address, count=count)
+        elif reg_type == "discrete":
             """Read Input Coils"""
-            return await self._read_discrete_inputs(reg_address=args.get("reg_address", 1), count=args.get("count",1))
-        elif args["type"] == "holding":
+            data = await self._read_discrete_inputs(reg_address=address, count=count)
+        elif reg_type == "holding":
             """Read Holding Registers"""
-            return await self._read_holding_registers(reg_address=args.get("reg_address", 1), count=args.get("count", 1))
-        elif args["type"] == "input":
+            data = await self._read_holding_registers(reg_address=address, count=count)
+        elif reg_type == "input":
             """Read Input Registers"""
-            return await self._read_input_registers(reg_address=args.get("reg_address", 1), count=args.get("count", 1))
+            data = await self._read_input_registers(reg_address=address, count=count)
         else:
             """Give en fejl."""
-            raise ValueError(f"Invalid register code: {args['type']}")
+            raise ValueError(f"Invalid register code: {reg_type}")
+        
+        return {
+            str(address + i): value
+            for i, value in enumerate(data)
+        }
