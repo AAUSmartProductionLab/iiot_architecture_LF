@@ -18,7 +18,7 @@ async def main():
 
     try:
         await reader.connect()
-        writer.connect()  # assuming this is synchronous
+        writer.connect() 
 
         await asyncio.sleep(1)
 

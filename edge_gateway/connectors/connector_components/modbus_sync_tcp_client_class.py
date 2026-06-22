@@ -28,6 +28,14 @@ class ModbusClient:
             print("Not connected to Modbus server.")
             return None
 
+        result = self.client.read_holding_registers(address=reg_address, count=count)
+        
+        if result is None or result.isError():
+            print(f"Modbus error: {result}")
+            return None
+        
+        return result.registers
+    
     def read(self, func_code, reg_address, count):
         """Carry out a read function."""
         if func_code == "FC1":
@@ -43,14 +51,6 @@ class ModbusClient:
             """Give en fejl."""
             print("Not a valid read function code.")
 
-        result = self.client.read_holding_registers(address=reg_address, count=count)
-        
-        if result is None or result.isError():
-            print(f"Modbus error: {result}")
-            return None
-        
-        return result.registers
-    
     def disconnect(self):
         self.client.close()
         self.connected = False
