@@ -110,9 +110,12 @@ class AsyncModbusClient:
         """
         
         reg_type = args["type"]
+        if not reg_type:
+            raise ValueError("Missing 'type' in arguments")
+        
         address = args.get("reg_address", 1)
+        
         count = args.get("count", 1)
-
         
         if reg_type == "coil":
             """Read Output Coils."""
@@ -128,7 +131,7 @@ class AsyncModbusClient:
             data = await self._read_input_registers(reg_address=address, count=count)
         else:
             """Give en fejl."""
-            raise ValueError(f"Invalid register code: {reg_type}")
+            raise ValueError(f"Invalid register type: {reg_type}")
         
         return {
             str(address + i): value
