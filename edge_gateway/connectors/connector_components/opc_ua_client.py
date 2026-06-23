@@ -128,6 +128,23 @@ class AsyncOPCUAClient:
         return sub, handle
 
     # -------------------------
+    # Subscribe (poll loop)
+    # -------------------------
+    async def subscribe(self, datapoints, on_value, interval=2.0):
+        """Poll each datapoint every `interval`s and hand its value to on_value.
+        Uses safe_read so a dropped connection is retried transparently. dp's
+        node id is read from dp['address']['node_id']."""
+        while True:
+            for dp in datapoints:
+                node_id = (dp.get("address") or {}).get("node_id")
+                try:
+                    value = await self.safe_read(node_id)
+                    on_value(dp, value)
+                except Exception as e:
+                    logger.error(f"OPC UA read failed for {dp.get('name')}: {e}")
+            await asyncio.sleep(interval)
+
+    # -------------------------
     # Context manager
     # -------------------------
     async def __aenter__(self):
