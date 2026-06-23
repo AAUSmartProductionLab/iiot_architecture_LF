@@ -5,13 +5,18 @@ A robust async OPC-UA client adapter.
 import asyncio
 import logging
 from asyncua import Client, ua
+from models.models import OPCUAReadRequest, OPCUAWriteRequest, OPCUAClientConfig
 
 logger = logging.getLogger(__name__)
 
 
 class AsyncOPCUAClient:
-    def __init__(self, url: str):
-        self.url = url
+    def __init__(self, config: OPCUAClientConfig):
+        self.url = config.url
+        if not self.url:
+            raise ValueError("Missing OPC UA URL argument.")
+
+        self.timeout = config.timeout
         self.client: Client | None = None
         self._node_cache = {}
         self._connected = False
@@ -20,12 +25,12 @@ class AsyncOPCUAClient:
     # -------------------------
     # Connection management
     # -------------------------
-    async def connect(self, timeout=4):
+    async def connect(self):
         if self._connected:
             return
 
         try:
-            self.client = Client(self.url, timeout=timeout)
+            self.client = Client(self.url, timeout=self.timeout)
             await self.client.connect()
             self._connected = True
             logger.info(f"Connected to {self.url}")
@@ -79,36 +84,57 @@ class AsyncOPCUAClient:
     # -------------------------
     # Read / Write
     # -------------------------
-    async def read(self, node_id: str):
+    async def _read(self, request: OPCUAReadRequest):
         try:
+            node_id = request.node_id
+            if node_id is None:
+                raise ValueError("Missing 'node_id'")
+
             node = self.get_node(node_id)
-            return await node.read_value()
+            value = await node.read_value()
+            
+            return {node_id: value}
+
         except Exception as e:
-            logger.error(f"Read failed", extra={"node_id": node_id, "error": str(e)})
+            logger.error(f"Read failed on node: {request.node_id}, error: {e}")
             raise
 
-    async def safe_read(self, node_id: str, retries=2):
+    async def safe_read(self, request: OPCUAReadRequest):
+
+        retries = request.retries
         for i in range(retries):
             try:
-                return await self.read(node_id)
+                return await self._read(request)
+            
             except Exception:
                 if i == retries - 1:
                     raise
                 await self.reconnect()
         
 
-    async def write(self, node_id: str, value):
+    async def _write(self, request: OPCUAWriteRequest):
         try:
+            node_id = request.node_id
+            value = request.value
+
+            if node_id is None:
+                raise ValueError("Missing 'node_id'")
+            if value is None:
+                raise ValueError("Missing 'value'")
             node = self.get_node(node_id)
             await node.write_value(ua.Variant(value))
+
         except Exception as e:
-            logger.error("Write failed", extra={"node_id": node_id, "error": str(e)})
+            logger.error(f"Write failed on node: {request.node_id}, error: {e}")
             raise
 
-    async def safe_write(self, node_id: str, value, retries=2):
+    async def safe_write(self, request: OPCUAWriteRequest):
+
+        retries = request.retries
         for i in range(retries):
             try:
-                return await self.write(node_id, value)
+                return await self._write(request)
+            
             except Exception:
                 if i == retries - 1:
                     raise

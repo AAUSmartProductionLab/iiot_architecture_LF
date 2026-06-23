@@ -8,11 +8,11 @@ Stage 3:
 - Implemet and test with docker. 
 """
 
-from connector_components.modbus_sync_tcp_client_class import ModbusClient
+from iiot_architecture_LF.edge_gateway.connectors.connector_components.modbus_async_tcp_client_class import AsyncModbusClient
 from connector_components.mqtt_pub_class import MqttPublisher
 import time
 
-reader = ModbusClient("127.0.0.1")
+reader = AsyncModbusClient("127.0.0.1")
 writer = MqttPublisher("127.0.0.1")
 
 try:
