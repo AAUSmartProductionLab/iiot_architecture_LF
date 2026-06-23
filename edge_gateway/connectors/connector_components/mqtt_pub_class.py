@@ -48,7 +48,7 @@ class MqttPublisher:
             return
         try:
             # Publish to Broker and wait for response
-            pub = self.client.publish(topic, payload, qos=self.qos)
+            pub = self.client.publish(topic, str(payload), qos=self.qos)
             pub.wait_for_publish()
             print(f"Published message to topic '{topic}': {payload}")
         except Exception as e:
