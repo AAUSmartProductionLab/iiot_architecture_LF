@@ -41,6 +41,13 @@ ADAPTER_NETWORK = os.getenv("ADAPTER_NETWORK")  # docker network linking adapter
 ADAPTER_BROKER_HOST = os.getenv("ADAPTER_BROKER_HOST", "gw-broker")
 ADAPTER_BROKER_PORT = int(os.getenv("ADAPTER_BROKER_PORT", "1883"))
 
+# Per-connector adapter config files: the agent writes <dir>/<device_key>/config.json
+# and mounts it into each adapter. Backed by a NAMED Docker volume shared
+# agent<->adapters — not a bind mount: the agent launches adapters via the host
+# socket, so bind-mount paths would resolve on the host, not in the agent.
+ADAPTER_CONFIG_DIR = os.getenv("ADAPTER_CONFIG_DIR", "/app/instances")
+ADAPTER_CONFIG_VOLUME = os.getenv("ADAPTER_CONFIG_VOLUME", "adapter_configs")
+
 # Periodically restart the HiveMQ container to reset the Enterprise Bridge
 # Extension's 5-hour trial (restart every N hours, < 5). 0 disables.
 BRIDGE_RESTART_HOURS = float(os.getenv("BRIDGE_RESTART_HOURS", "4"))
