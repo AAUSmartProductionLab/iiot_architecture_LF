@@ -52,12 +52,16 @@ Dashboard → http://localhost:5173 · AAS viewer → http://localhost:8082
 
 ```bash
 cd edge_gateway
-docker compose --profile build --profile sim build
-docker compose -f docker-compose.yaml -f docker-compose.host.yml --profile sim up -d
+docker compose --profile build build
+docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d
+
+# Optional: S7 PLC simulator for testing without real hardware (joins the
+# gateway network; start it after the stack is up):
+docker compose -f docker-compose.sim.yml up -d --build
 ```
 
-Drop `--profile sim` for real hardware. The gateway-agent restarts HiveMQ every
-`BRIDGE_RESTART_HOURS` (default 4) to keep the bridge extension's trial alive.
+The gateway-agent restarts HiveMQ every `BRIDGE_RESTART_HOURS` (default 4) to
+keep the bridge extension's trial alive.
 
 ## Use it
 
@@ -68,6 +72,7 @@ fill fields, provision). **Devices** shows latest values; **Asset Shells** rende
 ## Stop
 
 ```bash
-cd edge_gateway && docker compose -f docker-compose.yaml -f docker-compose.host.yml --profile sim down
+cd edge_gateway && docker compose -f docker-compose.sim.yml down   # if started
+cd edge_gateway && docker compose -f docker-compose.yaml -f docker-compose.host.yml down
 cd edge_server && docker compose down        # add -v to wipe data volumes
 ```
