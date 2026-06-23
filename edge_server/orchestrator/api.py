@@ -186,6 +186,15 @@ async def provision(req: ProvisionReq):
         # provision_device also refreshes the cached manifest on `rec`.
         return await registration_service.provision_device(rec, device_config)
     except httpx.HTTPStatusError as e:
-        raise HTTPException(status_code=502, detail=f"gateway/provision error: {e}")
+        # Forward the gateway's own client errors (e.g. 400 invalid connector)
+        # as-is instead of masking them all as a generic 502 bad-gateway.
+        status = e.response.status_code
+        try:
+            detail = e.response.json().get("detail", e.response.text)
+        except Exception:
+            detail = e.response.text
+        if 400 <= status < 500:
+            raise HTTPException(status_code=status, detail=detail)
+        raise HTTPException(status_code=502, detail=f"gateway/provision error: {detail}")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
