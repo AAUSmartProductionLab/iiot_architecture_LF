@@ -58,7 +58,6 @@ class AsyncModbusClient:
     async def _read_discrete_inputs(self, reg_address, count):
         result = await self.client.read_discrete_inputs(address=reg_address, count=count)
         
-        
         if result is None or result.isError():
             raise RuntimeError(f"Modbus error: {result}")
 

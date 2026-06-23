@@ -17,11 +17,71 @@ services:
       - "1883:1883"  # MQTT port
       - "8083:8083"  # WebSockets port (if configured)
       - "8080:8080"  # HiveMQ Control Center (Web UI)
+    networks:
+      - gateway-net
+
+  # FastAPI gateway agent: mDNS advertise + manifest/configure/connectors API,
+  # and launches one protocol-adapter container per connector via the Docker
+  # socket (onto gateway-net so adapters reach the broker + devices).
+  # DEFAULT = bridge networking + published port (API reachable on any host).
+  # mDNS advertise needs the Linux host-networking override (docker-compose.host.yml).
+  gateway-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.agent
+    image: iiot/gateway-agent
+    container_name: gateway-agent
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - AGENT_PORT=8000
+      - IDENTITY_FILE=/data/agent_identity.json
+      - BRIDGE_CONFIG_PATH=/app/broker/extensions/hivemq-bridge-extension/conf/config.xml
+      - HIVEMQ_CONTAINER=hivemq
+      # Adapter containers (protocol -> MQTT), launched per connector:
+      - ADAPTER_AUTOSTART=true
+      - ADAPTER_IMAGE=iiot/connector-adapter
+      - ADAPTER_NETWORK=gateway-net
+      - ADAPTER_BROKER_HOST=hivemq
+      - ADAPTER_BROKER_PORT=1883
+      - ADAPTER_CONFIG_DIR=/app/instances
+      - ADAPTER_CONFIG_VOLUME=adapter_configs
+      # Optional overrides for real hardware:
+      # - GATEWAY_ID=...
+      # - SERIAL_NUMBER=...
+      # - MANUFACTURER=...
+      # - HARDWARE_MODEL=...
+      # - FIRMWARE_VERSION=...
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock   # manage adapters + restart hivemq
+      - ./broker:/app/broker                         # edits to bridge config reach hivemq
+      - gateway_identity:/data                        # stable identity across recreation
+      - adapter_configs:/app/instances                # per-connector config.json, shared with adapters
+    depends_on:
+      - hivemq
+    networks:
+      - gateway-net
+
+  # Build-only: the image the gateway-agent runs per connector. Built by
+  # `docker compose build`; never started as a long-lived service.
+  connector-adapter:
+    build:
+      context: .
+      dockerfile: Dockerfile.adapter
+    image: iiot/connector-adapter
+    profiles: ["build"]
+    command: ["true"]
 
 volumes:
   hivemq_data:
+  gateway_identity:
+  # Explicit name (no project prefix) so the agent can mount it into adapters
+  # by the same literal name it uses here.
+  adapter_configs:
+    name: adapter_configs
 
 networks:
-  default:
+  gateway-net:
+    name: gateway-net
     driver: bridge
-

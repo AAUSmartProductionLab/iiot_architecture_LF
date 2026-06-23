@@ -1,0 +1,23 @@
+# Test-only simulators — NOT part of the architecture. Kept out of the main
+# compose so the gateway stack stays production-shaped.
+#
+# Bring the gateway up first (it creates the gateway-net network), then:
+#   docker compose -f docker-compose.sim.yml up -d --build
+#   docker compose -f docker-compose.sim.yml down
+services:
+  # S7 PLC simulator (snap7 server with a temperature DB) for testing the S7
+  # connector without real hardware.
+  s7-sim:
+    build:
+      context: ./simulators/s7
+    image: iiot/s7-sim
+    container_name: s7-sim
+    restart: unless-stopped
+    networks:
+      - gateway-net
+
+networks:
+  # Join the network the gateway stack already created.
+  gateway-net:
+    external: true
+    name: gateway-net

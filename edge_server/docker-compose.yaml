@@ -52,6 +52,108 @@ services:
     networks:
       - db_network
 
+  # Eclipse BaSyx v2 AAS Environment: aggregates the AAS, Submodel and
+  # ConceptDescription repositories into one component. Persistent source of
+  # truth for all semantic/AAS data. IDs are Base64URL-encoded in URLs.
+  aas-environment:
+    image: eclipsebasyx/aas-environment:2.0.0-SNAPSHOT
+    container_name: aas-environment
+    hostname: aas-environment
+    restart: unless-stopped
+    volumes:
+      - ./basyx/application.properties:/application/application.properties
+    ports:
+      - "8081:8081"  # REST API + Swagger UI (/swagger-ui/index.html)
+    networks:
+      - db_network
+
+  # Optional visual inspector for the AAS repository. Not required by the stack.
+  aas-gui:
+    image: eclipsebasyx/aas-gui:SNAPSHOT
+    container_name: aas-gui
+    restart: unless-stopped
+    environment:
+      - AAS_REPO_PATH=http://localhost:8081/shells
+      - SUBMODEL_REPO_PATH=http://localhost:8081/submodels
+      - CD_REPO_PATH=http://localhost:8081/concept-descriptions
+    ports:
+      - "8082:3000"  # avoids HiveMQ Control Center on host port 8080
+    depends_on:
+      - aas-environment
+    networks:
+      - db_network
+
+  # FastAPI orchestrator: mDNS browse, AAS orchestration, dashboard API.
+  # DEFAULT = bridge networking + published port, so the API is reachable on
+  # any host incl. Windows/Mac Docker Desktop. mDNS auto-discovery does NOT work
+  # in bridge mode -> use POST /api/gateways/register, or run with the Linux
+  # host-networking override (docker-compose.host.yml) to enable mDNS.
+  orchestrator:
+    build:
+      context: .
+      dockerfile: Dockerfile.orchestrator
+    image: iiot/orchestrator
+    container_name: orchestrator
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - AGENT_PORT=8000
+      - BASYX_URL=http://aas-environment:8081
+      - AAS_BASE_URL=https://smart-production.aau.dk
+      - LIVENESS_INTERVAL=20
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - aas-environment
+      - hivemq
+    networks:
+      - db_network
+
+  # React + Vite control board, dev mode with hot-module reload.
+  # Source is bind-mounted; the browser (on the host) calls the orchestrator at
+  # VITE_API_BASE directly. node_modules is an anonymous volume so the host mount
+  # doesn't shadow the container's installed deps.
+  dashboard:
+    build:
+      context: ../web
+      dockerfile: Dockerfile.dev
+    image: iiot/dashboard-dev
+    container_name: dashboard
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE=http://localhost:8000
+      - CHOKIDAR_USEPOLLING=true
+    volumes:
+      - ../web:/app
+      - /app/node_modules
+
+  # Event-driven TimescaleDB ingestion: subscribes to uns/# (all device data,
+  # no broker restart on new devices) + BaSyx submodel events (to learn each
+  # topic's device/datapoint/unit), and writes to the measurements hypertable.
+  timescale-ingestor:
+    build:
+      context: .
+      dockerfile: Dockerfile.ingestor
+    image: iiot/ingestor
+    container_name: timescale-ingestor
+    restart: unless-stopped
+    environment:
+      - BROKER_HOST=hivemq
+      - BROKER_PORT=1883
+      - BASYX_URL=http://aas-environment:8081
+      - TS_DSN=postgresql://postgres:admin@timescale:5432/postgres
+      - DATA_TOPIC=uns/#
+      - EVENT_TOPIC=sm-repository/#
+    depends_on:
+      - hivemq
+      - timescale
+      - aas-environment
+    networks:
+      - db_network
+
 volumes:
   ts_data:
   grafana_data:

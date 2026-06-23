@@ -1,0 +1,12 @@
+# Linux-only override: switch the gateway-agent to host networking so its mDNS
+# advertisement reaches the LAN and the server can auto-discover it.
+#
+# Usage (Linux):
+#   docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d
+#
+# Do NOT use on Windows/Mac Docker Desktop (host mode binds the VM, not the host).
+services:
+  gateway-agent:
+    network_mode: host
+    ports: !reset []
+    networks: !reset null

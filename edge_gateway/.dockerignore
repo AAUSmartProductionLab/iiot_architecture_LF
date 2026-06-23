@@ -1,0 +1,8 @@
+**/__pycache__/
+**/*.pyc
+agent/agent_identity.json
+broker/
+docker-compose.yaml
+docker-compose.host.yml
+Dockerfile.agent
+.dockerignore

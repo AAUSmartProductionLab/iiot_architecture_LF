@@ -1,0 +1,5 @@
+paho-mqtt
+python-snap7==3.0.0
+pymodbus
+asyncua
+pydantic

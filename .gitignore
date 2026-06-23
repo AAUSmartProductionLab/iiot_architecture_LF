@@ -218,3 +218,20 @@ __marimo__/
 .streamlit/secrets.toml
 
 **/grafana-data/*
+
+# Auto-generated, persisted gateway identity (per machine/install)
+**/agent_identity.json
+
+# Node / Vite (web dashboard)
+node_modules/
+web/dist/
+
+# HiveMQ runtime artifacts (must not be committed; DISABLED would disable the extension)
+**/hivemq-bridge-extension/DISABLED
+**/hivemq-bridge-extension/bridge.id
+
+# Remove old LLM coding plans
+plan.md
+plan_refined.md
+
+settings.json
