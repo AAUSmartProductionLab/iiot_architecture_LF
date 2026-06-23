@@ -1,19 +1,29 @@
-"""A thin Siemens S7 client (snap7) with a generic read_datapoint()."""
+"""A thin Siemens S7 client (snap7) with a generic read(dp).
+
+Datapoints carry their address under dp['address']:
+    {area: 'DB'|'MK'|'PE'|'PA', db_number, start, size}
+and dp['datatype'] (real/int/dint/…) drives decoding. Mirrors the sync
+connect()/read(dp)/disconnect() interface of the other connector clients.
+"""
 
 import snap7
-import snap7.util as su
-from snap7.client import Client
+
+from ..schemas import decode
+
+try:  # snap7 3.x exposes areas as an enum on snap7.type
+    from snap7.type import Area as _Area
+
+    _AREA_MAP = {"DB": _Area.DB, "MK": _Area.MK, "PE": _Area.PE, "PA": _Area.PA}
+except Exception:  # pragma: no cover - older snap7 fallback
+    _AREA_MAP = {}
 
 
 class S7Client:
-    """An S7 client. Datapoints carry their address under dp['address']:
-    {area: 'DB', db_number, start, size}; datatype from dp['datatype']."""
-
     def __init__(self, host, rack=0, slot=1):
         self.host = host
         self.rack = int(rack)
         self.slot = int(slot)
-        self.client = Client()
+        self.client = snap7.client.Client()
         self.connected = False
 
     def connect(self):
@@ -21,13 +31,28 @@ class S7Client:
         self.connected = self.client.get_connected()
         print(f"Connected to S7 {self.host} rack {self.rack} slot {self.slot}")
 
-    def read_datapoint(self, dp):
+    def read(self, dp):
         a = dp.get("address", {}) or {}
+        area = str(a.get("area", "DB")).upper()
         db = int(a.get("db_number", 1))
         start = int(a.get("start", 0))
         size = int(a.get("size", 4))
-        raw = self.client.db_read(db, start, size)
-        dt = (dp.get("datatype") or "real").lower()
+        datatype = dp.get("datatype")
+
+        if area == "DB":
+            raw = bytes(self.client.db_read(db, start, size))
+        elif area in _AREA_MAP:
+            # Non-DB areas (merker/inputs/outputs): db number is unused (0).
+            raw = bytes(self.client.read_area(_AREA_MAP[area], 0, start, size))
+        else:
+            raise ValueError(f"unsupported S7 area: {area}")
+
+        # Prefer the shared decoder; fall back to snap7 helpers for legacy names.
+        from ..schemas import resolve_datatype
+
+        if resolve_datatype(datatype) is not None:
+            return decode(raw, datatype)
+        dt = (datatype or "real").lower()
         if dt in ("real", "float", "float32", "float64"):
             return round(su.get_real(raw, 0), 3)
         if dt in ("int", "int16", "short"):
