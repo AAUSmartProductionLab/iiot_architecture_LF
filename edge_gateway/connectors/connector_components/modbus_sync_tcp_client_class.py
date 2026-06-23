@@ -2,6 +2,8 @@
 A Class to implement a synchronous MODBUS TCP client connector.
 """
 
+import asyncio
+
 from pymodbus.client import AsyncModbusTcpClient
 
 class AsyncModbusClient:
@@ -137,3 +139,26 @@ class AsyncModbusClient:
             str(address + i): value
             for i, value in enumerate(data)
         }
+
+    # -------------------------
+    # Subscribe (poll loop)
+    # -------------------------
+
+    async def subscribe(self, datapoints, on_value, interval=2.0):
+        """Poll each datapoint every `interval`s and hand the value to on_value.
+        Maps a datapoint's address {register, register_type, quantity} onto the
+        unified read() args {type, reg_address, count}."""
+        while True:
+            for dp in datapoints:
+                a = dp.get("address", {}) or {}
+                args = {
+                    "type": a.get("register_type", "holding"),
+                    "reg_address": int(a.get("register", 0)),
+                    "count": int(a.get("quantity", 1)),
+                }
+                try:
+                    value = await self.read(args)
+                    on_value(dp, value)
+                except Exception as e:
+                    print(f"Modbus read failed for {dp.get('name')}: {e}")
+            await asyncio.sleep(interval)

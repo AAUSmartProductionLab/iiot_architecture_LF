@@ -6,6 +6,8 @@ without the ingestion stack running.
 
 import logging
 
+import psycopg
+
 from . import config
 
 log = logging.getLogger("measurements")
@@ -14,8 +16,6 @@ log = logging.getLogger("measurements")
 def latest() -> list[dict]:
     """Latest value per (device, datapoint) from the measurements hypertable."""
     try:
-        import psycopg
-
         with psycopg.connect(config.TS_DSN, connect_timeout=3) as conn, conn.cursor() as cur:
             cur.execute(
                 """

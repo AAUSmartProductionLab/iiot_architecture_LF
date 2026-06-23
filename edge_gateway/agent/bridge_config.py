@@ -9,6 +9,8 @@ import os
 import re
 from pathlib import Path
 
+import docker
+
 log = logging.getLogger("bridge")
 
 BRIDGE_CONFIG_PATH = os.getenv(
@@ -55,8 +57,6 @@ def restart_broker() -> bool:
 
 def _restart_hivemq() -> bool:
     try:
-        import docker
-
         docker.from_env().containers.get(HIVEMQ_CONTAINER).restart()
         log.info("restarted HiveMQ container '%s'", HIVEMQ_CONTAINER)
         return True

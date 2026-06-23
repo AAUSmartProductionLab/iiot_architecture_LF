@@ -11,8 +11,10 @@ import re
 import uuid
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, ValidationError
+
+from connectors.config_model import parse_connector
 
 from . import adapters, bridge_config, config, manifest
 from .discovery import Advertiser
@@ -107,6 +109,16 @@ async def add_connector(req: ConnectorReq):
         "model": req.model,
         "serial_number": req.serial_number,
     }
+    # Validate against the connector data model (config_model) before storing or
+    # launching an adapter, so a misconfigured connector fails fast with a clear
+    # error rather than crash-looping a container.
+    try:
+        parse_connector(descriptor)
+    except ValidationError as e:
+        raise HTTPException(
+            status_code=400,
+            detail=[{"loc": err["loc"], "msg": err["msg"]} for err in e.errors()],
+        )
     manifest.upsert_connector(descriptor)
     # Launch the protocol->MQTT adapter container (no-op if autostart disabled).
     adapter_started = await asyncio.to_thread(adapters.start_adapter, descriptor)

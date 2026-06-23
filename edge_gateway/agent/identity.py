@@ -1,4 +1,8 @@
-"""Zero-config, stable gateway identity (Linux/Windows, stdlib only).
+"""Zero-config, stable gateway identity (stdlib only).
+
+Targets the Linux container but runs anywhere: the machine-token sources below
+degrade gracefully (Linux machine-id -> MAC node id -> random), and the result
+is persisted to IDENTITY_FILE on first run, so the token source only matters once.
 
 Resolves gateway_id/serial_number, persisting them so a gateway keeps the same
 identity (and AAS) across restarts. Per field, in order:
@@ -15,7 +19,6 @@ import json
 import os
 import re
 import socket
-import sys
 import uuid
 from pathlib import Path
 
@@ -38,19 +41,6 @@ def _machine_token() -> str:
             v = Path(p).read_text().strip()
             if v:
                 return v
-        except Exception:
-            pass
-    # Windows registry MachineGuid
-    if sys.platform.startswith("win"):
-        try:
-            import winreg
-
-            with winreg.OpenKey(
-                winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography"
-            ) as k:
-                val, _ = winreg.QueryValueEx(k, "MachineGuid")
-                if val:
-                    return str(val).replace("-", "")
         except Exception:
             pass
     # MAC-based node id
