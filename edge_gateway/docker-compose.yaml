@@ -45,6 +45,8 @@ services:
       - ADAPTER_NETWORK=gateway-net
       - ADAPTER_BROKER_HOST=hivemq
       - ADAPTER_BROKER_PORT=1883
+      - ADAPTER_CONFIG_DIR=/app/instances
+      - ADAPTER_CONFIG_VOLUME=adapter_configs
       # Optional overrides for real hardware:
       # - GATEWAY_ID=...
       # - SERIAL_NUMBER=...
@@ -55,6 +57,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock   # manage adapters + restart hivemq
       - ./broker:/app/broker                         # edits to bridge config reach hivemq
       - gateway_identity:/data                        # stable identity across recreation
+      - adapter_configs:/app/instances                # per-connector config.json, shared with adapters
     depends_on:
       - hivemq
     networks:
@@ -70,21 +73,13 @@ services:
     profiles: ["build"]
     command: ["true"]
 
-  # Optional S7 PLC simulator for testing (snap7 server with a temperature DB).
-  # Start with:  docker compose --profile sim up -d
-  s7-sim:
-    build:
-      context: ./simulators/s7
-    image: iiot/s7-sim
-    container_name: s7-sim
-    restart: unless-stopped
-    profiles: ["sim"]
-    networks:
-      - gateway-net
-
 volumes:
   hivemq_data:
   gateway_identity:
+  # Explicit name (no project prefix) so the agent can mount it into adapters
+  # by the same literal name it uses here.
+  adapter_configs:
+    name: adapter_configs
 
 networks:
   gateway-net:
