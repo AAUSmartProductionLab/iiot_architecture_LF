@@ -7,7 +7,7 @@
 # mDNS auto-discovery needs host networking (Linux only); it's ON by default.
 # On Windows/Mac Docker Desktop host mode binds the VM, not the LAN, so run:
 #   USE_HOST_NET=0 ./redeploy.sh
-set -euo pipefail
+set -eu
 
 cd "$(dirname "$0")"
 

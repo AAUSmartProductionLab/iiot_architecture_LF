@@ -7,7 +7,7 @@
 # Override defaults via env vars, e.g. to pin a branch or install location and run
 # without host networking (Windows/Mac):
 #   curl -fsSL <url> | BRANCH=main TARGET_DIR=~/iiot USE_HOST_NET=0 bash
-set -euo pipefail
+set -eu
 
 REPO_URL="${REPO_URL:-https://github.com/AAUSmartProductionLab/iiot_architecture_LF.git}"
 BRANCH="${BRANCH:-main}"
