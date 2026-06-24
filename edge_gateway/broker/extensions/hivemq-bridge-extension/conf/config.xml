@@ -22,7 +22,7 @@
 
             <topics>
                 <topic>
-                    <filter>devices/#</filter>
+                    <filter>#</filter>
                     <mode>PUB</mode>
                     <destination>uns/enterprise/site/area/line/{#}</destination>
                 </topic>
