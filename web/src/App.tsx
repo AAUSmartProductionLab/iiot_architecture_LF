@@ -1,21 +1,23 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, BASE } from "./api";
-import type { Device, Gateway, Measurement } from "./types";
+import type { ConnectorStatus, Device, Gateway, Measurement } from "./types";
 import { GatewayList } from "./components/GatewayList";
 import { GatewayDetail } from "./components/GatewayDetail";
 import { RegisterGatewayForm } from "./components/RegisterGatewayForm";
 import { DeviceList } from "./components/DeviceList";
 import { AasExplorer } from "./components/AasExplorer";
+import { LogsView } from "./components/LogsView";
 
 const POLL_MS = 4000;
 
-type View = "gateways" | "devices" | "aas";
+type View = "gateways" | "devices" | "aas" | "logs";
 type Theme = "dark" | "light";
 
 const NAV: { id: View; label: string }[] = [
   { id: "gateways", label: "Gateways" },
   { id: "devices", label: "Devices" },
   { id: "aas", label: "AAS" },
+  { id: "logs", label: "Logs" },
 ];
 
 export default function App() {
@@ -24,6 +26,7 @@ export default function App() {
   const [gateways, setGateways] = useState<Gateway[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
+  const [statuses, setStatuses] = useState<ConnectorStatus[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,10 +37,16 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     try {
-      const [gw, dv, ms] = await Promise.all([api.gateways(), api.devices(), api.measurementsLatest()]);
+      const [gw, dv, ms, st] = await Promise.all([
+        api.gateways(),
+        api.devices(),
+        api.measurementsLatest(),
+        api.connectorStatus().catch(() => [] as ConnectorStatus[]),
+      ]);
       setGateways(gw);
       setDevices(dv);
       setMeasurements(ms);
+      setStatuses(st);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -91,12 +100,19 @@ export default function App() {
         )}
 
         {view === "devices" && (
-          <DeviceList devices={devices} measurements={measurements} onChanged={refresh} />
+          <DeviceList
+            devices={devices}
+            measurements={measurements}
+            statuses={statuses}
+            onChanged={refresh}
+          />
         )}
 
         {view === "aas" && (
           <AasExplorer gateways={gateways} devices={devices} measurements={measurements} />
         )}
+
+        {view === "logs" && <LogsView devices={devices} statuses={statuses} />}
       </main>
     </div>
   );

@@ -1,4 +1,4 @@
-import type { AasBundle, Device, Gateway, Measurement } from "./types";
+import type { AasBundle, ConnectorStatus, Device, Gateway, Measurement } from "./types";
 
 export const BASE =
   (import.meta.env.VITE_API_BASE as string | undefined) || "http://localhost:8000";
@@ -53,5 +53,12 @@ export const api = {
     req(
       `/api/gateways/${encodeURIComponent(gatewayId)}/connectors/${encodeURIComponent(deviceKey)}`,
       { method: "DELETE" }
+    ),
+  connectorStatus: () => req<ConnectorStatus[]>("/api/connectors/status"),
+  connectorLogs: (gatewayId: string, deviceKey: string, tail = 200) =>
+    req<{ device_key: string; logs: string }>(
+      `/api/gateways/${encodeURIComponent(gatewayId)}/connectors/${encodeURIComponent(
+        deviceKey
+      )}/logs?tail=${tail}`
     ),
 };

@@ -31,3 +31,10 @@ export function StatusDot({ online }: { online: boolean }) {
     </>
   );
 }
+
+/** Connector connection-state badge (connected / error: reason / starting / …). */
+export function ConnState({ state, reason }: { state?: string; reason?: string | null }) {
+  const tone = state === "connected" ? "ok" : state === "error" ? "bad" : "neutral";
+  const label = state === "error" && reason ? `error: ${reason}` : state ?? "unknown";
+  return <Badge tone={tone}>{label}</Badge>;
+}

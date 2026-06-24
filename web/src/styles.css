@@ -233,7 +233,7 @@ code { color: var(--muted); }
 .device-card .dc-foot { display: flex; justify-content: flex-end; margin-top: auto; }
 
 /* network topology diagram (AAS tab) */
-.topo { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.topo { display: flex; flex-direction: column; align-items: center; gap: 0; width: 100%; }
 .topo-node {
   background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 10px 14px; min-width: 200px; text-align: center;
@@ -253,9 +253,18 @@ code { color: var(--muted); }
   position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
   white-space: nowrap; font-size: 11px; color: var(--muted);
 }
-.topo-devices {
-  display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
-  border-top: 2px solid var(--border); padding-top: 16px; margin-top: 4px; width: 100%;
+/* fan-out: SVG lines from the broker to each absolutely-placed device node */
+.topo-fan-cap { font-size: 11px; margin: 6px 0 2px; }
+.topo-fan-scroll { width: 100%; overflow-x: auto; display: flex; justify-content: center; }
+.topo-fan { position: relative; margin: 0 auto; }
+.topo-svg { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.topo-edge { stroke: var(--accent); stroke-width: 2; opacity: 0.65; }
+.topo-edge-dot { fill: var(--accent); }
+.topo-node.device {
+  position: absolute; transform: translateX(-50%); min-width: 0; padding: 9px 12px;
 }
-.topo-node.device { min-width: 180px; }
 .topo-node.device .topo-title { font-size: 13px; flex-wrap: wrap; }
+
+/* logs tab */
+.logs-pre { max-height: 62vh; white-space: pre-wrap; word-break: break-word; }
+.tree-item .small { margin-top: 2px; }

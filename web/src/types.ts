@@ -48,6 +48,15 @@ export interface AasBundle {
   submodels: any[];
 }
 
+export interface ConnectorStatus {
+  gateway_id: string;
+  device_key: string;
+  state: "connected" | "error" | "starting" | "stopped" | string;
+  container?: string;
+  reason?: string | null;
+  detail?: string | null;
+}
+
 export interface Measurement {
   device: string;
   datapoint: string;

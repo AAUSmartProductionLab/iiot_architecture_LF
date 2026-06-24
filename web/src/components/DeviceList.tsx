@@ -1,19 +1,22 @@
 import { useState } from "react";
 import { api } from "../api";
-import type { Device, Measurement } from "../types";
+import type { ConnectorStatus, Device, Measurement } from "../types";
 import { Modal } from "./Modal";
-import { Badge, Button } from "./ui";
+import { Badge, Button, ConnState } from "./ui";
 
 export function DeviceList({
   devices,
   measurements = [],
+  statuses = [],
   onChanged,
 }: {
   devices: Device[];
   measurements?: Measurement[];
+  statuses?: ConnectorStatus[];
   onChanged?: () => void;
 }) {
   const mIndex = new Map(measurements.map((m) => [`${m.device}|${m.datapoint}`, m]));
+  const sIndex = new Map(statuses.map((s) => [`${s.gateway_id}|${s.device_key}`, s]));
   const [pending, setPending] = useState<Device | null>(null);
 
   return (
@@ -28,6 +31,7 @@ export function DeviceList({
         <div className="card-grid">
           {devices.map((d) => {
             const sysId = d.gateway_serial ? `${d.gateway_serial}_${d.device_key}` : null;
+            const status = sIndex.get(`${d.gateway_id}|${d.device_key}`);
             return (
               <div className="device-card" key={d.device_aas_id ?? `${d.gateway_id}-${d.device_key}`}>
                 <div className="dc-head">
@@ -36,6 +40,9 @@ export function DeviceList({
                     <div className="dc-sub muted">{d.gateway_id}</div>
                   </div>
                   <Badge tone="accent">{d.protocol ?? "—"}</Badge>
+                </div>
+                <div className="row-actions">
+                  <ConnState state={status?.state} reason={status?.reason} />
                 </div>
 
                 <div className="dc-points">

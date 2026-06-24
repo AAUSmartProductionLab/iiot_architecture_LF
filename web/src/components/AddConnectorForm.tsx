@@ -107,6 +107,10 @@ function ConnectorWizard({
 
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  // After provisioning we poll the connector's status to give a surface-level
+  // connect verdict instead of optimistically claiming success.
+  const [phase, setPhase] = useState<"form" | "checking" | "done">("form");
+  const [verdict, setVerdict] = useState<{ state: string; reason?: string | null } | null>(null);
 
   // Reset the protocol-specific fields whenever the protocol changes.
   useEffect(() => {
@@ -135,7 +139,7 @@ function ConnectorWizard({
     setBusy(true);
     setMsg(null);
     try {
-      await api.provision({
+      const res = (await api.provision({
         gateway_id: gatewayId,
         device_id: effectiveDeviceId,
         protocol,
@@ -152,31 +156,67 @@ function ConnectorWizard({
             address: coerce(schema.datapoint, src),
           },
         ],
-      });
+      })) as { connector?: { device_key?: string } };
       onDone();
-      onClose();
+      setPhase("checking");
+      await pollConnection(res?.connector?.device_key ?? effectiveDeviceId);
     } catch (err) {
       setMsg({ kind: "err", text: String(err) });
       setBusy(false);
     }
   }
 
-  const footer = (
-    <>
-      <Button variant="ghost" onClick={step === 0 ? onClose : () => setStep(step - 1)} disabled={busy}>
-        {step === 0 ? "Cancel" : "Back"}
+  // Poll the connector's live status for a few seconds for a connect verdict.
+  async function pollConnection(deviceKey: string) {
+    for (let i = 0; i < 8; i++) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        const all = await api.connectorStatus();
+        const s = all.find((x) => x.gateway_id === gatewayId && x.device_key === deviceKey);
+        if (s && (s.state === "connected" || s.state === "error")) {
+          setVerdict({ state: s.state, reason: s.reason });
+          setPhase("done");
+          setBusy(false);
+          return;
+        }
+      } catch {
+        /* keep polling; transient errors are fine */
+      }
+    }
+    setVerdict({ state: "pending" });
+    setPhase("done");
+    setBusy(false);
+  }
+
+  const footer =
+    phase === "form" ? (
+      <>
+        <Button variant="ghost" onClick={step === 0 ? onClose : () => setStep(step - 1)} disabled={busy}>
+          {step === 0 ? "Cancel" : "Back"}
+        </Button>
+        {isLast ? (
+          <Button onClick={submit} disabled={busy}>
+            {busy ? "Provisioning…" : "Provision"}
+          </Button>
+        ) : (
+          <Button onClick={() => setStep(step + 1)} disabled={!canNext}>
+            Next
+          </Button>
+        )}
+      </>
+    ) : (
+      <Button onClick={onClose} disabled={phase === "checking"}>
+        {phase === "checking" ? "Testing…" : "Close"}
       </Button>
-      {isLast ? (
-        <Button onClick={submit} disabled={busy}>
-          {busy ? "Provisioning…" : "Provision"}
-        </Button>
-      ) : (
-        <Button onClick={() => setStep(step + 1)} disabled={!canNext}>
-          Next
-        </Button>
-      )}
-    </>
-  );
+    );
+
+  if (phase !== "form") {
+    return (
+      <Modal title="Add connector" open onClose={onClose} footer={footer} width={620}>
+        <ConnectionResult phase={phase} verdict={verdict} deviceId={effectiveDeviceId} />
+      </Modal>
+    );
+  }
 
   return (
     <Modal title="Add connector" open onClose={onClose} footer={footer} width={620}>
@@ -289,5 +329,44 @@ function DtDd({ k, v }: { k: string; v: string }) {
       <dt>{k}</dt>
       <dd>{v}</dd>
     </>
+  );
+}
+
+function ConnectionResult({
+  phase,
+  verdict,
+  deviceId,
+}: {
+  phase: "checking" | "done";
+  verdict: { state: string; reason?: string | null } | null;
+  deviceId: string;
+}) {
+  if (phase === "checking") {
+    return (
+      <p>
+        Provisioned <strong>{deviceId}</strong>. Testing connection to the endpoint…
+      </p>
+    );
+  }
+  if (verdict?.state === "connected") {
+    return (
+      <div className="msg ok">
+        Connected ✓ — <strong>{deviceId}</strong> reached its endpoint.
+      </div>
+    );
+  }
+  if (verdict?.state === "error") {
+    return (
+      <div className="msg err">
+        Provisioned, but failed to connect: <strong>{verdict.reason || "unknown error"}</strong>. See
+        the Logs tab for details.
+      </div>
+    );
+  }
+  return (
+    <div className="msg">
+      Provisioned <strong>{deviceId}</strong>. Connection status isn't available yet — check the Logs
+      tab.
+    </div>
   );
 }
