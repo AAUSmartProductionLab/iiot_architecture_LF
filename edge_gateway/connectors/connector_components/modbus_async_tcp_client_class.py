@@ -3,7 +3,7 @@ A Class to implement a synchronous MODBUS TCP client connector.
 """
 
 from pymodbus.client import AsyncModbusTcpClient
-from models.models import ModbusTCPClientConfig, ModbusReadRequest
+from iiot_architecture_LF.edge_gateway.connectors.connector_components.models import ModbusTCPClientConfig, ModbusReadRequest
 import logging
 from asyncio import sleep
 

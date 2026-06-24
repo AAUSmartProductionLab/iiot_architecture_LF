@@ -106,7 +106,7 @@ class MqttPublisher:
             for key, value in payload.items():
                 pub = self.client.publish(f"{topic}/{key}", str(value), qos=self.qos)
                 pub.wait_for_publish()
-                logger.info(f"Published message to topic '{topic}/{key}': {value}")
+                logger.info(f"Published message to topic '{topic}/{key}': {value}") #!!! This needs to be reimplemented as a safe method re: OPC UA nodes
         except Exception as e:
             # If failure raise exception
             logger.error(f"Failed to publish message: {e}")

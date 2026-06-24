@@ -5,7 +5,7 @@ A script to test the AsyncOPCUAClient class.
 import asyncio
 import logging
 
-from connector_components.opc_ua_client import AsyncOPCUAClient  # adjust import!
+from iiot_architecture_LF.edge_gateway.connectors.connector_components.opc_ua_client import AsyncOPCUAClient  # adjust import!
 
 # -------------------------
 # Configuration

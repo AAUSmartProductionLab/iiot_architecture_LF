@@ -45,3 +45,21 @@ class OPCUAWriteRequest:
 #---------------------------
 # MQTT Data Classes
 #---------------------------
+
+#---------------------------
+# Snap7 Data Classes
+#---------------------------
+
+@dataclass
+class S7ClientConfig:
+    host: str
+    rack: int = 0
+    slot: int = 1
+
+@dataclass
+class S7ReadRequest:
+    db_number: int
+    start: int
+    size: int
+    datatype: Literal["real", "lreral", "float", "float32", "float64", "int", "dint", "bytes"] = "real"
+    retries: int = 2

@@ -5,7 +5,7 @@ A robust async OPC-UA client adapter.
 import asyncio
 import logging
 from asyncua import Client, ua
-from models.models import OPCUAReadRequest, OPCUAWriteRequest, OPCUAClientConfig
+from iiot_architecture_LF.edge_gateway.connectors.connector_components.models import OPCUAReadRequest, OPCUAWriteRequest, OPCUAClientConfig
 
 logger = logging.getLogger(__name__)
 
