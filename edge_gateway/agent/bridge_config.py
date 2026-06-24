@@ -34,8 +34,11 @@ def _rewrite_host(server_ip: str) -> bool:
         return False
     xml = path.read_text(encoding="utf-8")
     # Regex (not ElementTree) to preserve the xsi schema attributes and comments.
+    # The host value is a plain address, so match `[^<]*` between the tags: that
+    # way a stray "<host>" token elsewhere (e.g. in a comment) can't anchor a
+    # greedy match that swallows the real tags in between.
     new_xml, n = re.subn(
-        r"(<host>).*?(</host>)", rf"\g<1>{server_ip}\g<2>", xml, count=1, flags=re.S
+        r"(<host>)[^<]*(</host>)", rf"\g<1>{server_ip}\g<2>", xml, count=1
     )
     if n == 0:
         log.warning("no <host> element in bridge config; skipping")
