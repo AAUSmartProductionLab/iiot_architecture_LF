@@ -4,8 +4,8 @@ A script to test connector functionality with OPC UA Client.
 
 import asyncio
 
-from connector_components.opc_ua_client import AsyncOPCUAClient
-from connector_components.mqtt_pub_class import MqttPublisher
+from iiot_architecture_LF.edge_gateway.connectors.connector_components.opc_ua_client import AsyncOPCUAClient
+from iiot_architecture_LF.edge_gateway.connectors.connector_components.mqtt_pub_class import MqttPublisher
 
 
 OPC_URL = "opc.tcp://192.168.0.131:53530/OPCUA/SimulationServer"
