@@ -17,10 +17,23 @@ import logging
 import time
 
 from .config_model import ConnectorConfig
-from .connector_components.modbus_sync_tcp_client_class import AsyncModbusClient
 from .connector_components.mqtt_pub_class import MqttPublisher
-from .connector_components.opc_ua_client import AsyncOPCUAClient
 from .connector_components.s7_client_class import S7Client
+
+# The Modbus and OPC UA clients are mid-rework (dataclass-based config + a
+# `models.models` import) and are not yet wired to this Connector's uniform
+# dict-based interface. Import them defensively so an in-progress / incompatible
+# client module can't take down the whole adapter — S7 still works. A clear error
+# is raised in _make_client only if one of those protocols is actually requested.
+try:
+    from .connector_components.modbus_async_tcp_client_class import AsyncModbusClient
+except Exception:  # noqa: BLE001 - tolerate an in-progress client module
+    AsyncModbusClient = None
+
+try:
+    from .connector_components.opc_ua_client import AsyncOPCUAClient
+except Exception:  # noqa: BLE001 - tolerate an in-progress client module
+    AsyncOPCUAClient = None
 
 log = logging.getLogger("connector")
 
@@ -48,8 +61,12 @@ class Connector:
         # that `connection` is the matching typed model.
         c = self.config
         if c.protocol == "modbus-tcp":
+            if AsyncModbusClient is None:
+                raise ValueError("modbus-tcp adapter unavailable (client integration in progress)")
             return AsyncModbusClient(c.connection.model_dump())
         if c.protocol == "opcua":
+            if AsyncOPCUAClient is None:
+                raise ValueError("opcua adapter unavailable (client integration in progress)")
             return AsyncOPCUAClient(c.connection.endpoint_url)
         if c.protocol == "s7":
             return S7Client(c.connection.host, c.connection.rack, c.connection.slot)
