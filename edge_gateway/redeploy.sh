@@ -26,13 +26,20 @@ echo "==> [2/5] Removing stale per-connector adapter containers"
 # plain 'down' leaves them running on the old image. Drop them by their label.
 docker ps -aq --filter "label=iiot.role=adapter" | xargs -r docker rm -f
 
-echo "==> [3/5] Seeding the bridge config (if missing)"
+echo "==> [3/5] Preparing the bridge extension"
+EXT="broker/extensions/hivemq-bridge-extension"
 # config.xml is gitignored + rewritten at runtime; seed it from the tracked
 # template only when absent, so a configured broker <host> survives redeploys.
-CFG="broker/extensions/hivemq-bridge-extension/conf/config.xml"
+CFG="$EXT/conf/config.xml"
 if [ ! -f "$CFG" ]; then
   cp "$CFG.template" "$CFG"
   echo "    seeded $CFG from template"
+fi
+# HiveMQ drops a DISABLED marker when the extension's trial lapses; clearing it
+# re-enables the bridge on the next start.
+if [ -f "$EXT/DISABLED" ]; then
+  rm -f "$EXT/DISABLED"
+  echo "    removed $EXT/DISABLED"
 fi
 
 echo "==> [4/5] Building images (gateway-agent + connector-adapter)"
