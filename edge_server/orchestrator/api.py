@@ -236,3 +236,43 @@ async def deprovision(gateway_id: str, device_key: str):
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"deprovision failed: {e}")
+
+
+@router.get("/connectors/status")
+async def connectors_status():
+    """Live connection state for every connector across all gateways (UI badges).
+
+    Best-effort: unreachable gateways are skipped rather than failing the whole
+    response, so one offline gateway doesn't blank the dashboard.
+    """
+    out = []
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        for rec in registry.list():
+            ip, port = rec.get("ip"), rec.get("port")
+            if not ip or not port:
+                continue
+            try:
+                r = await client.get(f"http://{ip}:{port}/api/connectors/status")
+                r.raise_for_status()
+                statuses = r.json()
+            except Exception:
+                continue
+            for device_key, st in statuses.items():
+                out.append({"gateway_id": rec.get("gateway_id"), "device_key": device_key, **st})
+    return out
+
+
+@router.get("/gateways/{gateway_id}/connectors/{device_key}/logs")
+async def connector_logs(gateway_id: str, device_key: str, tail: int = 200):
+    """Proxy a connector's adapter logs from the gateway (for the UI Logs tab)."""
+    rec = registry.get(gateway_id)
+    if not rec or not rec.get("ip"):
+        raise HTTPException(status_code=404, detail="unknown or unreachable gateway")
+    url = f"http://{rec['ip']}:{rec['port']}/api/connectors/{device_key}/logs"
+    async with httpx.AsyncClient(timeout=config.HTTP_TIMEOUT) as client:
+        try:
+            r = await client.get(url, params={"tail": tail})
+            r.raise_for_status()
+            return r.json()
+        except httpx.HTTPError as e:
+            raise HTTPException(status_code=502, detail=f"gateway logs fetch failed: {e}")

@@ -88,6 +88,59 @@ def start_adapter(descriptor: dict) -> bool:
         return False
 
 
+def _parse_failed(line: str) -> tuple[str | None, str | None]:
+    """Pull `reason=… detail=…` out of a CONNECT_FAILED log line."""
+    if "reason=" not in line:
+        return None, None
+    rest = line.split("reason=", 1)[1]
+    if " detail=" in rest:
+        reason, detail = rest.split(" detail=", 1)
+    else:
+        reason, detail = rest, None
+    return reason.strip() or None, (detail.strip() if detail else None)
+
+
+def connector_status(device_key: str) -> dict:
+    """Live connection state for one adapter, derived from its container state +
+    the CONNECTED / CONNECT_FAILED markers the adapter logs.
+
+    state: connected | error | starting | stopped. `reason`/`detail` are set on
+    error (reason is the surface-level wizard message; detail is the full text).
+    """
+    name = _container_name(device_key)
+    try:
+        container = docker.from_env().containers.get(name)
+    except Exception:
+        return {"state": "stopped", "container": "absent", "reason": None, "detail": "no adapter container"}
+
+    container_state = getattr(container, "status", "unknown")
+    try:
+        logs = container.logs(tail=200).decode("utf-8", "replace")
+    except Exception:
+        logs = ""
+
+    state, reason, detail = "starting", None, None
+    for line in reversed(logs.splitlines()):
+        if "CONNECT_FAILED" in line:
+            state = "error"
+            reason, detail = _parse_failed(line)
+            break
+        if "CONNECTED" in line:
+            state = "connected"
+            break
+    if container_state in ("exited", "dead") and state != "error":
+        state = "stopped"
+    return {"state": state, "container": container_state, "reason": reason, "detail": detail}
+
+
+def connector_logs(device_key: str, tail: int = 200) -> str:
+    try:
+        container = docker.from_env().containers.get(_container_name(device_key))
+        return container.logs(tail=tail).decode("utf-8", "replace")
+    except Exception as e:
+        return f"(no logs for adapter-{device_key}: {e})"
+
+
 def stop_adapter(device_key: str) -> bool:
     removed = False
     try:

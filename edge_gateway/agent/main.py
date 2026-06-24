@@ -130,6 +130,23 @@ async def add_connector(req: ConnectorReq):
     return {**descriptor, "adapter_started": adapter_started}
 
 
+@app.get("/api/connectors/status")
+async def connectors_status():
+    """Live connection state per connector (for the UI status badges)."""
+    out = {}
+    for c in manifest.list_connectors():
+        key = c["device_key"]
+        out[key] = await asyncio.to_thread(adapters.connector_status, key)
+    return out
+
+
+@app.get("/api/connectors/{device_key}/logs")
+async def connector_logs(device_key: str, tail: int = 200):
+    """Recent adapter container logs for one connector (for the UI Logs tab)."""
+    logs = await asyncio.to_thread(adapters.connector_logs, device_key, tail)
+    return {"device_key": device_key, "logs": logs}
+
+
 @app.delete("/api/connectors/{device_key}")
 async def delete_connector(device_key: str):
     """Remove a connector and stop its adapter container (idempotent)."""
