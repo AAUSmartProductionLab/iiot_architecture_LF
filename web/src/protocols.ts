@@ -8,6 +8,7 @@ export interface Field {
   default?: string;
   type?: "text" | "number";
   options?: string[];
+  required?: boolean;
 }
 
 export interface ProtocolSchema {
@@ -22,12 +23,12 @@ export const PROTOCOLS: ProtocolSchema[] = [
     id: "modbus-tcp",
     label: "Modbus TCP",
     connection: [
-      { key: "host", label: "Host" },
+      { key: "host", label: "Host", required: true },
       { key: "port", label: "Port", default: "502", type: "number" },
       { key: "unit_id", label: "Unit ID", default: "1", type: "number" },
     ],
     datapoint: [
-      { key: "register", label: "Register", default: "40001", type: "number" },
+      { key: "register", label: "Register", default: "40001", type: "number", required: true },
       { key: "register_type", label: "Register type", default: "holding", options: ["holding", "input"] },
       { key: "quantity", label: "Quantity", default: "2", type: "number" },
     ],
@@ -35,14 +36,14 @@ export const PROTOCOLS: ProtocolSchema[] = [
   {
     id: "opcua",
     label: "OPC UA",
-    connection: [{ key: "endpoint_url", label: "Endpoint URL", default: "opc.tcp://host:4840" }],
-    datapoint: [{ key: "node_id", label: "Node ID", default: "ns=2;s=" }],
+    connection: [{ key: "endpoint_url", label: "Endpoint URL", default: "opc.tcp://host:4840", required: true }],
+    datapoint: [{ key: "node_id", label: "Node ID", default: "ns=2;s=", required: true }],
   },
   {
     id: "s7",
     label: "Siemens S7 (snap7)",
     connection: [
-      { key: "host", label: "Host" },
+      { key: "host", label: "Host", required: true },
       { key: "rack", label: "Rack", default: "0", type: "number" },
       { key: "slot", label: "Slot", default: "1", type: "number" },
     ],
@@ -57,8 +58,8 @@ export const PROTOCOLS: ProtocolSchema[] = [
     id: "usb",
     label: "USB HID",
     connection: [
-      { key: "vendor_id", label: "Vendor ID", default: "0x0000" },
-      { key: "product_id", label: "Product ID", default: "0x0000" },
+      { key: "vendor_id", label: "Vendor ID", default: "0x0000", required: true },
+      { key: "product_id", label: "Product ID", default: "0x0000", required: true },
     ],
     datapoint: [
       { key: "report_id", label: "Report ID", default: "0", type: "number" },

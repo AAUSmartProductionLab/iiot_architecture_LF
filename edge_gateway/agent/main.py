@@ -38,6 +38,11 @@ async def _periodic_broker_restart():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Restore connectors persisted on the config volume so a restart doesn't drop
+    # every device (the adapter containers themselves survive via restart policy).
+    restored = manifest.load_persisted_connectors()
+    if restored:
+        log.info("restored %d persisted connector(s)", restored)
     await advertiser.start()
     log.info("advertising %s on mDNS (port %s)", config.GATEWAY_ID, config.AGENT_PORT)
     restart_task = asyncio.create_task(_periodic_broker_restart())
@@ -123,3 +128,14 @@ async def add_connector(req: ConnectorReq):
     # Launch the protocol->MQTT adapter container (no-op if autostart disabled).
     adapter_started = await asyncio.to_thread(adapters.start_adapter, descriptor)
     return {**descriptor, "adapter_started": adapter_started}
+
+
+@app.delete("/api/connectors/{device_key}")
+async def delete_connector(device_key: str):
+    """Remove a connector and stop its adapter container (idempotent)."""
+    removed = manifest.remove_connector(device_key)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"unknown connector {device_key}")
+    # Tear down the adapter container + its instance config (best-effort).
+    await asyncio.to_thread(adapters.stop_adapter, device_key)
+    return {"device_key": device_key, "removed": True}

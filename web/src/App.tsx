@@ -15,7 +15,7 @@ type Theme = "dark" | "light";
 const NAV: { id: View; label: string }[] = [
   { id: "gateways", label: "Gateways" },
   { id: "devices", label: "Devices" },
-  { id: "aas", label: "Asset Shells" },
+  { id: "aas", label: "AAS" },
 ];
 
 export default function App() {
@@ -80,13 +80,19 @@ export default function App() {
 
         {view === "gateways" && (
           <>
-            <GatewayList gateways={gateways} selectedId={selectedId} onSelect={setSelectedId} />
+            <GatewayList
+              gateways={gateways}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              action={<RegisterGatewayForm onDone={refresh} />}
+            />
             {selected && <GatewayDetail gateway={selected} onChanged={refresh} />}
-            <RegisterGatewayForm onDone={refresh} />
           </>
         )}
 
-        {view === "devices" && <DeviceList devices={devices} measurements={measurements} />}
+        {view === "devices" && (
+          <DeviceList devices={devices} measurements={measurements} onChanged={refresh} />
+        )}
 
         {view === "aas" && (
           <AasExplorer gateways={gateways} devices={devices} measurements={measurements} />

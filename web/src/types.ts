@@ -1,3 +1,15 @@
+export interface BridgeInfo {
+  configured?: boolean;
+  server_ip?: string | null;
+  uns_prefix?: string | null;
+}
+
+export interface MqttInfo {
+  local_broker_host?: string;
+  local_broker_port?: number;
+  local_base_topic?: string;
+}
+
 export interface Gateway {
   gateway_id: string;
   serial_number: string | null;
@@ -7,6 +19,8 @@ export interface Gateway {
   online: boolean;
   last_seen: number | null;
   device_count: number;
+  bridge?: BridgeInfo | null;
+  mqtt?: MqttInfo | null;
 }
 
 export interface Datapoint {
@@ -24,6 +38,7 @@ export interface Device {
   device_key: string;
   device_id: string | null;
   protocol: string | null;
+  connection?: Record<string, unknown>;
   datapoints: Datapoint[];
   device_aas_id: string | null;
 }

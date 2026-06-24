@@ -7,9 +7,17 @@
   --text: #e6edf3;
   --muted: #8b97a7;
   --accent: #4c8bf5;
+  --accent-hover: #3f7ce0;
   --green: #3fb950;
   --red: #f85149;
+  --ok-bg: #16301c;
+  --ok-fg: #aee9b8;
+  --bad-bg: #3a1d1d;
+  --bad-fg: #ffb4ac;
   --pre-bg: #0c1117;
+  --overlay: rgba(0, 0, 0, 0.55);
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.45);
+  --radius: 8px;
   color-scheme: dark;
 }
 
@@ -21,9 +29,17 @@
   --text: #1f2630;
   --muted: #5a6675;
   --accent: #2f6fed;
+  --accent-hover: #2356c8;
   --green: #1a7f37;
   --red: #cf222e;
+  --ok-bg: #dff5e4;
+  --ok-fg: #11663a;
+  --bad-bg: #fbe3e1;
+  --bad-fg: #a01b22;
   --pre-bg: #f6f8fa;
+  --overlay: rgba(20, 28, 38, 0.4);
+  --shadow: 0 10px 40px rgba(20, 28, 38, 0.18);
+  --radius: 8px;
   color-scheme: light;
 }
 
@@ -70,8 +86,8 @@ body {
 
 .lifecycle { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; margin-bottom: 14px; font-size: 13px; }
 .pill { padding: 2px 8px; border-radius: 999px; font-size: 12px; }
-.pill.ok { background: #16301c; color: #aee9b8; }
-.pill.bad { background: #3a1d1d; color: #ffb4ac; }
+.pill.ok { background: var(--ok-bg); color: var(--ok-fg); }
+.pill.bad { background: var(--bad-bg); color: var(--bad-fg); }
 
 section { margin: 14px 0; }
 section h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); }
@@ -100,23 +116,35 @@ tr.selected td { background: var(--panel-2); }
 form.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
 .field { display: flex; flex-direction: column; gap: 4px; }
 .field label { font-size: 12px; color: var(--muted); }
+.req { color: var(--red); margin-left: 2px; }
+.field .hint { font-size: 11px; color: var(--muted); }
 input, select {
   background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
   border-radius: 6px; padding: 7px 9px; font-size: 13px; min-width: 120px;
 }
-button.primary {
-  background: var(--accent); color: #fff; border: none; border-radius: 6px;
-  padding: 8px 14px; cursor: pointer; font-size: 13px;
+/* Buttons — one base, three variants. Legacy class names alias the variants. */
+.btn {
+  border-radius: 6px; cursor: pointer; font-size: 13px; padding: 8px 14px;
+  border: 1px solid transparent; font-weight: 500; line-height: 1;
+  transition: background 0.12s ease, border-color 0.12s ease, opacity 0.12s ease;
 }
-button.primary:disabled { opacity: 0.5; cursor: default; }
-button.ghost {
-  background: transparent; color: var(--accent); border: 1px solid var(--border);
-  border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 12px;
+.btn:disabled { opacity: 0.5; cursor: default; }
+.btn.primary, button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn.primary:hover:not(:disabled), button.primary:hover:not(:disabled) {
+  background: var(--accent-hover); border-color: var(--accent-hover);
 }
+.btn.ghost, button.ghost {
+  background: transparent; color: var(--accent); border-color: var(--border);
+  padding: 6px 10px; font-size: 12px;
+}
+.btn.ghost:hover:not(:disabled), button.ghost:hover:not(:disabled) { background: var(--panel-2); }
+.btn.danger { background: transparent; color: var(--red); border-color: var(--border); }
+.btn.danger:hover:not(:disabled) { background: var(--bad-bg); border-color: var(--red); }
+button.primary, button.ghost { cursor: pointer; }
 
 .msg { font-size: 13px; padding: 8px 10px; border-radius: 6px; margin-top: 10px; }
-.msg.err { background: #3a1d1d; color: #ffb4ac; }
-.msg.ok { background: #16301c; color: #aee9b8; }
+.msg.err { background: var(--bad-bg); color: var(--bad-fg); }
+.msg.ok { background: var(--ok-bg); color: var(--ok-fg); }
 .muted { color: var(--muted); }
 pre {
   background: var(--pre-bg); border: 1px solid var(--border); border-radius: 6px;
@@ -129,3 +157,105 @@ code { color: var(--muted); }
   background: var(--panel); color: var(--text); border: 1px solid var(--border);
   border-radius: 6px; padding: 7px 12px; cursor: pointer; font-size: 13px;
 }
+
+/* section header with actions (title left, buttons right) */
+.section-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-bottom: 14px;
+}
+.section-head h2 { margin: 0; }
+.row-actions { display: flex; gap: 8px; align-items: center; }
+
+/* badges (protocol / status chips) */
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px;
+  font-weight: 500; border: 1px solid var(--border); background: var(--panel-2); color: var(--text);
+}
+.badge.ok { background: var(--ok-bg); color: var(--ok-fg); border-color: transparent; }
+.badge.bad { background: var(--bad-bg); color: var(--bad-fg); border-color: transparent; }
+.badge.accent { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); border-color: transparent; }
+
+/* modal dialog */
+.modal-backdrop {
+  position: fixed; inset: 0; background: var(--overlay);
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 8vh 16px 16px; z-index: 50; overflow-y: auto;
+}
+.modal {
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); max-width: 100%; display: flex; flex-direction: column;
+}
+.modal-head {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px; border-bottom: 1px solid var(--border);
+}
+.modal-head h2 { margin: 0; font-size: 16px; }
+.modal-x {
+  background: transparent; border: none; color: var(--muted);
+  font-size: 22px; line-height: 1; cursor: pointer; padding: 0 4px;
+}
+.modal-x:hover { color: var(--text); }
+.modal-body { padding: 18px; }
+.modal-foot {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 14px 18px; border-top: 1px solid var(--border);
+}
+
+/* wizard step indicator */
+.steps { display: flex; gap: 8px; margin-bottom: 18px; }
+.steps .step {
+  flex: 1; display: flex; flex-direction: column; gap: 4px; font-size: 11px;
+  color: var(--muted); padding-top: 8px; border-top: 2px solid var(--border);
+}
+.steps .step.active { color: var(--text); border-top-color: var(--accent); }
+.steps .step.done { color: var(--text); border-top-color: var(--green); }
+.steps .step .step-no { font-weight: 600; }
+
+/* vertical field stack inside the wizard */
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-grid .field { min-width: 0; }
+.field-grid .field input, .field-grid .field select { min-width: 0; width: 100%; }
+.wizard-review dl.kv { font-size: 13px; }
+
+/* device card grid */
+.card-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 14px;
+}
+.device-card {
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 14px; display: flex; flex-direction: column; gap: 10px;
+}
+.device-card .dc-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.device-card .dc-title { font-weight: 600; }
+.device-card .dc-sub { font-size: 12px; }
+.device-card .dc-points { display: flex; flex-direction: column; gap: 5px; font-size: 13px; }
+.device-card .dc-point { display: flex; justify-content: space-between; gap: 8px; }
+.device-card .dc-foot { display: flex; justify-content: flex-end; margin-top: auto; }
+
+/* network topology diagram (AAS tab) */
+.topo { display: flex; flex-direction: column; align-items: center; gap: 0; }
+.topo-node {
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 10px 14px; min-width: 200px; text-align: center;
+}
+.topo-node.server { border-color: var(--accent); }
+.topo-node.gateway { border-color: var(--green); }
+.topo-node .topo-title {
+  font-weight: 600; font-size: 14px; display: flex; align-items: center;
+  justify-content: center; gap: 8px;
+}
+.topo-node .topo-meta { font-size: 12px; margin-top: 3px; }
+.topo-link {
+  width: 2px; height: 34px; background: var(--accent); position: relative; margin: 4px 0;
+}
+.topo-link.dim { background: var(--border); }
+.topo-link-label {
+  position: absolute; left: 10px; top: 50%; transform: translateY(-50%);
+  white-space: nowrap; font-size: 11px; color: var(--muted);
+}
+.topo-devices {
+  display: flex; flex-wrap: wrap; gap: 12px; justify-content: center;
+  border-top: 2px solid var(--border); padding-top: 16px; margin-top: 4px; width: 100%;
+}
+.topo-node.device { min-width: 180px; }
+.topo-node.device .topo-title { font-size: 13px; flex-wrap: wrap; }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { Button } from "./ui";
 
 export function ConfigureGatewayForm({ gatewayId }: { gatewayId: string }) {
   const [ip, setIp] = useState("");
@@ -44,9 +45,9 @@ export function ConfigureGatewayForm({ gatewayId }: { gatewayId: string }) {
           <label>Edge server broker IP {autofilled && <span className="muted">(auto)</span>}</label>
           <input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="auto-detected" />
         </div>
-        <button className="primary" disabled={busy}>
+        <Button disabled={busy}>
           {busy ? "Applying…" : "Apply & restart broker"}
-        </button>
+        </Button>
       </form>
       {msg && <div className={`msg ${msg.kind}`}>{msg.text}</div>}
     </>

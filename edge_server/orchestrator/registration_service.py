@@ -19,7 +19,7 @@ from .aas.element_factory import AASElementFactory
 from .aas.hierarchical_structures_builder import HierarchicalStructuresBuilder
 from .aas.semantic_ids import SemanticIdFactory
 from .aas.software_nameplate_builder import SoftwareNameplateBuilder
-from .basyx_client import upsert_shell, upsert_submodel
+from .basyx_client import delete_shell_with_submodels, upsert_shell, upsert_submodel
 
 log = logging.getLogger("registration")
 
@@ -215,6 +215,62 @@ class RegistrationService:
         gateway_record["device_count"] = len(manifest.get("configured_connectors", []))
         result["connector"] = r.json()
         return result
+
+    async def deprovision_device(self, gateway_record: dict, device_key: str) -> dict:
+        """Remove a connector from the gateway, delete its AAS, and re-sync.
+
+        Forwards a DELETE to the gateway, deletes the device's shell + submodels
+        from BaSyx, then rebuilds the gateway AAS (so topology drops the device)
+        from the refreshed manifest.
+        """
+        ip, port = gateway_record.get("ip"), gateway_record.get("port")
+        if not ip or not port:
+            raise ValueError("gateway has no reachable address")
+        serial = gateway_record.get("serial_number")
+
+        async with httpx.AsyncClient(timeout=config.HTTP_TIMEOUT) as client:
+            r = await client.delete(f"http://{ip}:{port}/api/connectors/{device_key}")
+            # A 404 is ambiguous: either the gateway already dropped this connector
+            # (fine, idempotent), or the agent is too old to have the DELETE route
+            # at all. Don't raise on it here — the manifest check below is the real
+            # source of truth.
+            if r.status_code != 404:
+                r.raise_for_status()
+            # Re-fetch the manifest so configured_connectors is authoritative.
+            m = await client.get(f"http://{ip}:{port}/api/manifest")
+            m.raise_for_status()
+            manifest = m.json()
+
+        # Verify the gateway actually removed it. If it's still in the manifest the
+        # delete didn't take effect (e.g. an older agent without the DELETE route);
+        # bail out *before* touching the AAS, otherwise the rebuild below would just
+        # re-create the device we set out to delete.
+        still_present = any(
+            (c.get("device_key") or c.get("device_id")) == device_key
+            for c in manifest.get("configured_connectors", [])
+        )
+        if still_present:
+            raise ValueError(
+                f"gateway still reports connector {device_key} after delete — the "
+                "gateway agent is likely out of date (missing DELETE /api/connectors)"
+            )
+
+        # Drop the device's own AAS (shell + submodels). The gateway AAS is rebuilt
+        # below from the now-shorter manifest, which also prunes the topology link.
+        if serial:
+            dsys = ids.device_system_id(serial, device_key)
+            await delete_shell_with_submodels(ids.aas_id(dsys))
+
+        network = {
+            "ip": ip,
+            "port": port,
+            "hostname": gateway_record.get("hostname"),
+            "gateway_id": gateway_record.get("gateway_id"),
+        }
+        await self.register_gateway(manifest, network)
+        gateway_record["manifest"] = manifest
+        gateway_record["device_count"] = len(manifest.get("configured_connectors", []))
+        return {"device_key": device_key, "removed": True}
 
 
 registration_service = RegistrationService()

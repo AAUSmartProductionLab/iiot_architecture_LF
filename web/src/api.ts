@@ -19,7 +19,7 @@ export interface ProvisionPayload {
   gateway_id: string;
   device_id: string;
   protocol: string;
-  address: Record<string, unknown>;
+  connection: Record<string, unknown>;
   datapoints: Record<string, unknown>[];
   manufacturer?: string;
   model?: string;
@@ -49,4 +49,9 @@ export const api = {
     }),
   provision: (payload: ProvisionPayload) =>
     req("/api/provision", { method: "POST", body: JSON.stringify(payload) }),
+  deprovision: (gatewayId: string, deviceKey: string) =>
+    req(
+      `/api/gateways/${encodeURIComponent(gatewayId)}/connectors/${encodeURIComponent(deviceKey)}`,
+      { method: "DELETE" }
+    ),
 };

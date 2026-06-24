@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import type { AasBundle, Device, Gateway, Measurement } from "../types";
 import * as aas from "../aas_render";
+import { Button } from "./ui";
+import { TopologyGraph } from "./TopologyGraph";
 
 type Selection =
   | { kind: "gateway"; gateway: Gateway }
@@ -90,10 +92,23 @@ export function AasExplorer({
             {err && <div className="msg err">{err}</div>}
             {bundle && (
               <>
-                <button className="ghost" onClick={() => setRaw(!raw)} style={{ marginBottom: 10 }}>
+                <Button variant="ghost" onClick={() => setRaw(!raw)} style={{ marginBottom: 10 }}>
                   {raw ? "Rendered view" : "Raw JSON"}
-                </button>
-                {raw ? <pre>{JSON.stringify(bundle, null, 2)}</pre> : <Rendered bundle={bundle} mIndex={mIndex} sel={sel} />}
+                </Button>
+                {raw ? (
+                  <pre>{JSON.stringify(bundle, null, 2)}</pre>
+                ) : (
+                  <>
+                    {sel.kind === "gateway" && (
+                      <TopologyGraph
+                        gateway={sel.gateway}
+                        devices={devices.filter((d) => d.gateway_id === sel.gateway.gateway_id)}
+                        archetype={aas.topology(bundle.submodels)?.archetype}
+                      />
+                    )}
+                    <Rendered bundle={bundle} mIndex={mIndex} sel={sel} />
+                  </>
+                )}
               </>
             )}
           </>
@@ -137,7 +152,6 @@ function Rendered({
   const np = aas.nameplate(bundle.submodels);
   const sw = aas.software(bundle.submodels);
   const ifaces = aas.interfaces(bundle.submodels);
-  const topo = aas.topology(bundle.submodels);
   const sysId =
     sel.kind === "device" && sel.device.gateway_serial
       ? `${sel.device.gateway_serial}_${sel.device.device_key}`
@@ -197,20 +211,6 @@ function Rendered({
           )}
         </section>
       ))}
-      {topo && (
-        <section>
-          <h3>Topology ({topo.archetype})</h3>
-          {topo.nodes.length === 0 ? (
-            <span className="muted">no linked assets</span>
-          ) : (
-            <ul>
-              {topo.nodes.map((n) => (
-                <li key={n.idShort}>{n.idShort} <span className="muted">{n.globalAssetId}</span></li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
     </>
   );
 }

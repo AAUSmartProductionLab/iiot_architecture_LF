@@ -21,6 +21,7 @@ router = APIRouter(prefix="/api")
 
 
 def _summarise(rec: dict) -> dict:
+    manifest = rec.get("manifest") or {}
     return {
         "gateway_id": rec.get("gateway_id"),
         "serial_number": rec.get("serial_number"),
@@ -30,6 +31,9 @@ def _summarise(rec: dict) -> dict:
         "online": rec.get("online", False),
         "last_seen": rec.get("last_seen"),
         "device_count": rec.get("device_count", 0),
+        # Northbound specs (for the topology view): MQTT bridge + local broker.
+        "bridge": manifest.get("bridge"),
+        "mqtt": manifest.get("mqtt"),
     }
 
 
@@ -91,6 +95,8 @@ async def list_devices():
                     "device_key": device_key,
                     "device_id": c.get("device_id"),
                     "protocol": c.get("protocol"),
+                    # Southbound specs (for the topology view): protocol connection.
+                    "connection": c.get("connection", {}),
                     "datapoints": c.get("datapoints", []),
                     "device_aas_id": ids.aas_id(ids.device_system_id(serial, device_key))
                     if serial and device_key
@@ -198,3 +204,35 @@ async def provision(req: ProvisionReq):
         raise HTTPException(status_code=502, detail=f"gateway/provision error: {detail}")
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Surface AAS build / unexpected failures as a clean error. Without this
+        # the 500 is generated above CORSMiddleware and the browser reports it as
+        # a CORS failure instead of showing the real reason.
+        raise HTTPException(status_code=400, detail=f"provisioning failed: {e}")
+
+
+@router.delete("/gateways/{gateway_id}/connectors/{device_key}")
+async def deprovision(gateway_id: str, device_key: str):
+    """Remove a device/service from a gateway (from the Web UI) + drop its AAS."""
+    rec = registry.get(gateway_id)
+    if not rec:
+        raise HTTPException(status_code=404, detail="unknown gateway")
+    try:
+        return await registration_service.deprovision_device(rec, device_key)
+    except httpx.HTTPStatusError as e:
+        status = e.response.status_code
+        try:
+            detail = e.response.json().get("detail", e.response.text)
+        except Exception:
+            detail = e.response.text
+        if 400 <= status < 500:
+            raise HTTPException(status_code=status, detail=detail)
+        raise HTTPException(status_code=502, detail=f"gateway/deprovision error: {detail}")
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"deprovision failed: {e}")

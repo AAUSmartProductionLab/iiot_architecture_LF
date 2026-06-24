@@ -1,15 +1,20 @@
+import type { ReactNode } from "react";
 import type { Gateway } from "../types";
 
 interface Props {
   gateways: Gateway[];
   selectedId: string | null;
   onSelect: (id: string) => void;
+  action?: ReactNode;
 }
 
-export function GatewayList({ gateways, selectedId, onSelect }: Props) {
+export function GatewayList({ gateways, selectedId, onSelect, action }: Props) {
   return (
     <div className="card">
-      <h2>Discovered gateways ({gateways.length})</h2>
+      <div className="section-head">
+        <h2>Discovered gateways ({gateways.length})</h2>
+        {action && <div className="row-actions">{action}</div>}
+      </div>
       {gateways.length === 0 ? (
         <p className="muted">
           No gateways yet. They appear automatically via mDNS, or register one manually below.

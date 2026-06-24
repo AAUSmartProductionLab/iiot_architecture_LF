@@ -52,6 +52,32 @@ async def upsert_shell(client: httpx.AsyncClient, aas_obj) -> None:
     await _upsert(client, "shells", to_validated_json(aas_obj))
 
 
+async def delete_shell_with_submodels(aas_id: str) -> bool:
+    """Delete a shell and its referenced submodels from BaSyx (idempotent).
+
+    Returns True if the shell existed and was removed, False if it was already
+    absent. Missing submodels are ignored so a partial state still cleans up.
+    """
+    async with httpx.AsyncClient(timeout=config.HTTP_TIMEOUT) as client:
+        r = await client.get(f"{BASYX}/shells/{b64(aas_id)}")
+        if r.status_code == 404:
+            return False
+        r.raise_for_status()
+        shell = r.json()
+        for ref in shell.get("submodels", []):
+            keys = ref.get("keys", [])
+            if not keys:
+                continue
+            sm_id = keys[0]["value"]
+            sr = await client.delete(f"{BASYX}/submodels/{b64(sm_id)}")
+            if sr.status_code not in (200, 204, 404):
+                sr.raise_for_status()
+        dr = await client.delete(f"{BASYX}/shells/{b64(aas_id)}")
+        if dr.status_code not in (200, 204, 404):
+            dr.raise_for_status()
+        return True
+
+
 async def fetch_shell_with_submodels(aas_id: str) -> dict:
     """Read a shell and resolve its referenced submodels (for the UI proxy)."""
     async with httpx.AsyncClient(timeout=config.HTTP_TIMEOUT) as client:

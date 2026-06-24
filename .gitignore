@@ -225,6 +225,7 @@ __marimo__/
 # Node / Vite (web dashboard)
 node_modules/
 web/dist/
+*.tsbuildinfo
 
 # HiveMQ runtime artifacts (must not be committed; DISABLED would disable the extension)
 **/hivemq-bridge-extension/DISABLED

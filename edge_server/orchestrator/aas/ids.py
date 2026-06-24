@@ -20,10 +20,11 @@ def _slug(text: str) -> str:
 
 
 def id_short(text: str) -> str:
-    """AAS id_short allows only letters, digits and underscore (AASd-002)."""
+    """AAS id_short: letters/digits/underscore, and must START with a letter (AASd-002)."""
     s = re.sub(r"[^A-Za-z0-9_]", "_", str(text))
-    if s and s[0].isdigit():
-        s = "_" + s
+    if s and not s[0].isalpha():
+        # A leading digit or underscore violates AASd-002; prefix a letter.
+        s = "id_" + s
     return s or "Item"
 
 
