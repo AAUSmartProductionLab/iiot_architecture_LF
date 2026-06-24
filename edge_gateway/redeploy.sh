@@ -18,19 +18,28 @@ else
   HOST=""
 fi
 
-echo "==> [1/4] Stopping the gateway stack"
+echo "==> [1/5] Stopping the gateway stack"
 docker compose $BASE $HOST down
 
-echo "==> [2/4] Removing stale per-connector adapter containers"
+echo "==> [2/5] Removing stale per-connector adapter containers"
 # Adapters are launched by the agent via the Docker socket, not by compose, so a
 # plain 'down' leaves them running on the old image. Drop them by their label.
 docker ps -aq --filter "label=iiot.role=adapter" | xargs -r docker rm -f
 
-echo "==> [3/4] Building images (gateway-agent + connector-adapter)"
+echo "==> [3/5] Seeding the bridge config (if missing)"
+# config.xml is gitignored + rewritten at runtime; seed it from the tracked
+# template only when absent, so a configured broker <host> survives redeploys.
+CFG="broker/extensions/hivemq-bridge-extension/conf/config.xml"
+if [ ! -f "$CFG" ]; then
+  cp "$CFG.template" "$CFG"
+  echo "    seeded $CFG from template"
+fi
+
+echo "==> [4/5] Building images (gateway-agent + connector-adapter)"
 # connector-adapter is a build-only service behind the 'build' profile.
 docker compose $BASE --profile build build
 
-echo "==> [4/4] Starting the stack (hivemq, then the agent)"
+echo "==> [5/5] Starting the stack (hivemq, then the agent)"
 docker compose $BASE $HOST up -d
 
 echo

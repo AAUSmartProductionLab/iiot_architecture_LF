@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Default bridge config. The deploy scripts copy this to config.xml on first
+     run (config.xml is gitignored so its runtime <host> never causes pull
+     conflicts). The gateway-agent rewrites <host> when the bridge is configured
+     from the dashboard. -->
 <hivemq-bridge-extension xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
                          xsi:noNamespaceSchemaLocation="config.xsd">
     <bridges>
@@ -8,7 +12,7 @@
             <remote-broker>
                 <connection>
                     <static>
-                        <host>192.168.68.62</host>
+                        <host>EDGE_SERVER_IP</host>
                         <port>1883</port>
                     </static>
                 </connection>

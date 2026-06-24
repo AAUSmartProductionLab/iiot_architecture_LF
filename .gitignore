@@ -230,6 +230,9 @@ web/dist/
 # HiveMQ runtime artifacts (must not be committed; DISABLED would disable the extension)
 **/hivemq-bridge-extension/DISABLED
 **/hivemq-bridge-extension/bridge.id
+# Runtime bridge config: seeded from config.xml.template by the deploy scripts and
+# rewritten at runtime (its <host> drifts), so keep it out of git.
+**/hivemq-bridge-extension/conf/config.xml
 
 # Remove old LLM coding plans
 plan.md
