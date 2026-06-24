@@ -96,7 +96,16 @@ class Connector:
 
     def _publish(self, dp: dict, value):
         topic = dp.get("local_topic") or f"devices/{dp.get('name')}"
-        self.publisher.publish(topic, json.dumps({"value": value, "ts": time.time()}))
+        payload = json.dumps({"value": value, "ts": time.time()})
+        # Publish JSON {value, ts} straight to the datapoint topic — the shape the
+        # server ingestor expects (it json.loads the payload and reads `value`/`ts`,
+        # resolving the device via the AID topic map). We go through the publisher's
+        # underlying paho client because MqttPublisher.publish() fans a *dict* out to
+        # per-key subtopics, which doesn't match that UNS/AID contract.
+        if not self.publisher.connected:
+            return
+        info = self.publisher.client.publish(topic, payload, qos=self.publisher.qos)
+        info.wait_for_publish()
 
     async def run(self):
         """Connect the protocol client + MQTT publisher, then stream values.
