@@ -3,7 +3,7 @@ Data Classes for the OT adapters.
 """
 
 from dataclasses import dataclass
-from typing import Literal, Any
+from typing import Literal, Any, Dict
 
 #---------------------------
 # Modbus TCP Data Classes
@@ -41,3 +41,7 @@ class OPCUAWriteRequest:
     node_id: str
     value: Any
     retries: int = 2
+
+#---------------------------
+# MQTT Data Classes
+#---------------------------
