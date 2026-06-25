@@ -47,10 +47,10 @@ if [ ! -f "$CFG" ]; then
   echo "    seeded $CFG from template"
 fi
 # HiveMQ runs as a non-root user (uid 10000) and writes bridge.id / DISABLED into
-# the extension dir at startup. On Linux bind mounts it must be able to write
-# there, or the extension fails to start with "Permission denied". Make the dir
-# writable by any uid (no-op effect on git: only the unix write bit changes).
-chmod -R a+rwX "$EXT" 2>/dev/null || true
+# the extension dir at startup. On Linux bind mounts it must be able to create
+# files there, or the extension fails to start with "Permission denied". Make the
+# directories writable by any uid (files are left untouched).
+find "$EXT" -type d -exec chmod a+rwx {} + 2>/dev/null || true
 # HiveMQ drops a DISABLED marker when the extension's trial lapses (or fails to
 # start); clearing it re-enables the bridge on the next start.
 if [ -f "$EXT/DISABLED" ]; then
