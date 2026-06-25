@@ -147,6 +147,23 @@ async def connector_logs(device_key: str, tail: int = 200):
     return {"device_key": device_key, "logs": logs}
 
 
+# Gateway-level log targets the UI can stream (the agent itself + the broker).
+_SYSTEM_CONTAINERS = {
+    "agent": config.AGENT_CONTAINER,
+    "broker": config.HIVEMQ_CONTAINER,
+}
+
+
+@app.get("/api/logs/{target}")
+async def system_logs(target: str, tail: int = 200):
+    """Recent logs for a gateway-level container (target: agent | broker)."""
+    name = _SYSTEM_CONTAINERS.get(target)
+    if not name:
+        raise HTTPException(status_code=404, detail=f"unknown log target {target}")
+    logs = await asyncio.to_thread(adapters.container_logs, name, tail)
+    return {"target": target, "logs": logs}
+
+
 @app.delete("/api/connectors/{device_key}")
 async def delete_connector(device_key: str):
     """Remove a connector and stop its adapter container (idempotent)."""

@@ -269,6 +269,20 @@ async def connector_logs(gateway_id: str, device_key: str, tail: int = 200):
     if not rec or not rec.get("ip"):
         raise HTTPException(status_code=404, detail="unknown or unreachable gateway")
     url = f"http://{rec['ip']}:{rec['port']}/api/connectors/{device_key}/logs"
+    return await _proxy_logs(url, tail)
+
+
+@router.get("/gateways/{gateway_id}/logs/{target}")
+async def gateway_logs(gateway_id: str, target: str, tail: int = 200):
+    """Proxy gateway-level logs (target: agent | broker) for the UI Logs tab."""
+    rec = registry.get(gateway_id)
+    if not rec or not rec.get("ip"):
+        raise HTTPException(status_code=404, detail="unknown or unreachable gateway")
+    url = f"http://{rec['ip']}:{rec['port']}/api/logs/{target}"
+    return await _proxy_logs(url, tail)
+
+
+async def _proxy_logs(url: str, tail: int) -> dict:
     async with httpx.AsyncClient(timeout=config.HTTP_TIMEOUT) as client:
         try:
             r = await client.get(url, params={"tail": tail})

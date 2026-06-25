@@ -48,6 +48,10 @@ ADAPTER_BROKER_PORT = int(os.getenv("ADAPTER_BROKER_PORT", "1883"))
 ADAPTER_CONFIG_DIR = os.getenv("ADAPTER_CONFIG_DIR", "/app/instances")
 ADAPTER_CONFIG_VOLUME = os.getenv("ADAPTER_CONFIG_VOLUME", "adapter_configs")
 
+# Container names whose logs the UI can stream (this agent + the local broker).
+AGENT_CONTAINER = os.getenv("AGENT_CONTAINER", "gateway-agent")
+HIVEMQ_CONTAINER = os.getenv("HIVEMQ_CONTAINER", "hivemq")
+
 # Periodically restart the HiveMQ container to reset the Enterprise Bridge
 # Extension's 5-hour trial (restart every N hours, < 5). 0 disables.
 BRIDGE_RESTART_HOURS = float(os.getenv("BRIDGE_RESTART_HOURS", "4"))

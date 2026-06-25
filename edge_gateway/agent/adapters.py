@@ -133,12 +133,17 @@ def connector_status(device_key: str) -> dict:
     return {"state": state, "container": container_state, "reason": reason, "detail": detail}
 
 
-def connector_logs(device_key: str, tail: int = 200) -> str:
+def container_logs(name: str, tail: int = 200) -> str:
+    """Tail a container's logs by name (best-effort)."""
     try:
-        container = docker.from_env().containers.get(_container_name(device_key))
+        container = docker.from_env().containers.get(name)
         return container.logs(tail=tail).decode("utf-8", "replace")
     except Exception as e:
-        return f"(no logs for adapter-{device_key}: {e})"
+        return f"(no logs for {name}: {e})"
+
+
+def connector_logs(device_key: str, tail: int = 200) -> str:
+    return container_logs(_container_name(device_key), tail)
 
 
 def stop_adapter(device_key: str) -> bool:
