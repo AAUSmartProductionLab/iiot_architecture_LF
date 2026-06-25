@@ -20,32 +20,54 @@ BRIDGE_CONFIG_PATH = os.getenv(
 HIVEMQ_CONTAINER = os.getenv("HIVEMQ_CONTAINER", "hivemq")
 
 
-def apply_bridge_ip(server_ip: str) -> bool:
-    """Rewrite the bridge <host> and restart HiveMQ. Returns True if restarted."""
-    if not _rewrite_host(server_ip):
+def apply_bridge_ip(server_ip: str, uns_prefix: str | None = None) -> bool:
+    """Rewrite the bridge <host> (and, if given, the UNS destination) and restart
+    HiveMQ. Returns True if the broker was restarted."""
+    if not _rewrite_config(server_ip, uns_prefix):
         return False
     return _restart_hivemq()
 
 
-def _rewrite_host(server_ip: str) -> bool:
+def _rewrite_config(server_ip: str, uns_prefix: str | None) -> bool:
     path = Path(BRIDGE_CONFIG_PATH)
     if not path.exists():
         log.warning("bridge config not found at %s; skipping re-template", path)
         return False
-    xml = path.read_text(encoding="utf-8")
+    xml = orig = path.read_text(encoding="utf-8")
     # Regex (not ElementTree) to preserve the xsi schema attributes and comments.
     # The host value is a plain address, so match `[^<]*` between the tags: that
     # way a stray "<host>" token elsewhere (e.g. in a comment) can't anchor a
     # greedy match that swallows the real tags in between.
-    new_xml, n = re.subn(
+    xml, n = re.subn(
         r"(<host>)[^<]*(</host>)", rf"\g<1>{server_ip}\g<2>", xml, count=1
     )
     if n == 0:
         log.warning("no <host> element in bridge config; skipping")
         return False
-    if new_xml != xml:
-        path.write_text(new_xml, encoding="utf-8")
-        log.info("bridge config <host> set to %s", server_ip)
+
+    if uns_prefix:
+        prefix = uns_prefix.strip().strip("/")
+        # PUB topic destination: <uns-prefix>/{#} (HiveMQ substitutes {#} with the
+        # matched local topic). {{#}} in the rf-string emits a literal {#}.
+        xml, dn = re.subn(
+            r"(<destination>)[^<]*(</destination>)",
+            rf"\g<1>{prefix}/{{#}}\g<2>", xml, count=1,
+        )
+        # SUB commands filter mirrors the UNS path with its leading segment swapped
+        # to "commands" (uns/site/... -> commands/site/...), anchored on the
+        # existing "commands/" so the PUB filter ("#") is left untouched.
+        parts = prefix.split("/")
+        cmd = "/".join(["commands", *parts[1:]]) if len(parts) > 1 else "commands"
+        xml, _ = re.subn(
+            r"(<filter>)commands/[^<]*(</filter>)",
+            rf"\g<1>{cmd}/#\g<2>", xml, count=1,
+        )
+        if dn:
+            log.info("bridge UNS destination set to %s/{#}", prefix)
+
+    if xml != orig:
+        path.write_text(xml, encoding="utf-8")
+        log.info("bridge config updated (host=%s)", server_ip)
     return True
 
 

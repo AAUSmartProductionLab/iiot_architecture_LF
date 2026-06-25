@@ -30,7 +30,10 @@ export function GatewayDetail({
         </div>
       </div>
 
-      <ConfigureGatewayForm gatewayId={gateway.gateway_id} />
+      <ConfigureGatewayForm
+        gatewayId={gateway.gateway_id}
+        unsPrefix={gateway.bridge?.uns_prefix}
+      />
     </div>
   );
 }

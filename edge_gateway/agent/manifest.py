@@ -93,9 +93,11 @@ def get_bridge_state() -> dict:
     return dict(_bridge)
 
 
-def set_bridge_state(server_ip: str) -> dict:
+def set_bridge_state(server_ip: str, uns_prefix: str | None = None) -> dict:
     _bridge["server_ip"] = server_ip
     _bridge["configured"] = bool(server_ip)
+    if uns_prefix:
+        _bridge["uns_prefix"] = uns_prefix.strip().strip("/")
     return dict(_bridge)
 
 

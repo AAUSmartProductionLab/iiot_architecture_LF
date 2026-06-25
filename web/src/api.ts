@@ -40,12 +40,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ ip, port }),
     }),
-  configureGateway: (id: string, serverBridgeIp?: string) =>
+  configureGateway: (id: string, serverBridgeIp?: string, unsPrefix?: string) =>
     req(`/api/gateways/${encodeURIComponent(id)}/configure`, {
       method: "POST",
-      body: JSON.stringify(
-        serverBridgeIp ? { server_bridge_ip: serverBridgeIp } : {}
-      ),
+      body: JSON.stringify({
+        ...(serverBridgeIp ? { server_bridge_ip: serverBridgeIp } : {}),
+        ...(unsPrefix ? { uns_prefix: unsPrefix } : {}),
+      }),
     }),
   provision: (payload: ProvisionPayload) =>
     req("/api/provision", { method: "POST", body: JSON.stringify(payload) }),

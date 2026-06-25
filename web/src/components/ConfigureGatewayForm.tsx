@@ -2,11 +2,25 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { Button } from "./ui";
 
-export function ConfigureGatewayForm({ gatewayId }: { gatewayId: string }) {
+const DEFAULT_UNS = "uns/enterprise/site/area/line";
+
+export function ConfigureGatewayForm({
+  gatewayId,
+  unsPrefix,
+}: {
+  gatewayId: string;
+  unsPrefix?: string | null;
+}) {
   const [ip, setIp] = useState("");
+  const [uns, setUns] = useState(unsPrefix || DEFAULT_UNS);
   const [autofilled, setAutofilled] = useState(false);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Reflect the gateway's stored UNS prefix once it loads/changes.
+  useEffect(() => {
+    if (unsPrefix) setUns(unsPrefix);
+  }, [unsPrefix]);
 
   // The bridge target is the edge server itself, so prefill its IP.
   useEffect(() => {
@@ -24,11 +38,15 @@ export function ConfigureGatewayForm({ gatewayId }: { gatewayId: string }) {
     setBusy(true);
     setMsg(null);
     try {
-      // Empty -> orchestrator uses its own IP; otherwise send the edited value.
-      const res: any = await api.configureGateway(gatewayId, ip || undefined);
+      // Empty IP -> orchestrator uses its own IP; UNS omitted -> gateway keeps current.
+      const res: any = await api.configureGateway(
+        gatewayId,
+        ip || undefined,
+        uns.trim() || undefined
+      );
       setMsg({
         kind: "ok",
-        text: `Bridge set to ${res.server_ip}; broker restarted: ${res.broker_restarted}`,
+        text: `Bridge set to ${res.server_ip} (UNS ${res.uns_prefix}); broker restarted: ${res.broker_restarted}`,
       });
     } catch (err) {
       setMsg({ kind: "err", text: String(err) });
@@ -44,6 +62,14 @@ export function ConfigureGatewayForm({ gatewayId }: { gatewayId: string }) {
         <div className="field">
           <label>Edge server broker IP {autofilled && <span className="muted">(auto)</span>}</label>
           <input value={ip} onChange={(e) => setIp(e.target.value)} placeholder="auto-detected" />
+        </div>
+        <div className="field">
+          <label>UNS path <span className="muted">(bridge destination root)</span></label>
+          <input
+            value={uns}
+            onChange={(e) => setUns(e.target.value)}
+            placeholder={DEFAULT_UNS}
+          />
         </div>
         <Button disabled={busy}>
           {busy ? "Applying…" : "Apply & restart broker"}

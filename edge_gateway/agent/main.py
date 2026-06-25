@@ -67,15 +67,20 @@ async def get_manifest():
 
 class ConfigureReq(BaseModel):
     server_bridge_ip: str
+    # UNS root the bridge republishes local topics under, e.g.
+    # "uns/enterprise/site/area/line". Optional: leaves the current value when omitted.
+    uns_prefix: str | None = None
 
 
 @app.post("/api/configure")
 async def configure(req: ConfigureReq):
-    """Record the server bridge IP, re-template the HiveMQ bridge config and
-    restart the broker (best-effort; no-op when run as host Python without the
-    broker mount / Docker socket)."""
-    state = manifest.set_bridge_state(req.server_bridge_ip)
-    restarted = await asyncio.to_thread(bridge_config.apply_bridge_ip, req.server_bridge_ip)
+    """Record the server bridge IP (+ optional UNS prefix), re-template the HiveMQ
+    bridge config and restart the broker (best-effort; no-op when run as host
+    Python without the broker mount / Docker socket)."""
+    state = manifest.set_bridge_state(req.server_bridge_ip, req.uns_prefix)
+    restarted = await asyncio.to_thread(
+        bridge_config.apply_bridge_ip, req.server_bridge_ip, req.uns_prefix
+    )
     return {**state, "broker_restarted": restarted}
 
 

@@ -145,6 +145,9 @@ async def register_gateway(req: RegisterReq):
 class ConfigureReq(BaseModel):
     # Optional: defaults to the edge server's own IP (the broker gateways bridge to).
     server_bridge_ip: str | None = None
+    # Optional UNS root the gateway's bridge republishes under (e.g.
+    # "uns/enterprise/site/area/line"); leaves the gateway's current value when omitted.
+    uns_prefix: str | None = None
 
 
 @router.post("/gateways/{gateway_id}/configure")
@@ -159,10 +162,13 @@ async def configure_gateway(gateway_id: str, req: ConfigureReq):
         raise HTTPException(status_code=404, detail="unknown or unreachable gateway")
     bridge_ip = req.server_bridge_ip or config.resolve_server_ip()
     url = f"http://{rec['ip']}:{rec['port']}/api/configure"
+    payload: dict = {"server_bridge_ip": bridge_ip}
+    if req.uns_prefix:
+        payload["uns_prefix"] = req.uns_prefix
     # Configure restarts the HiveMQ broker (~10-15s), so allow a generous timeout.
     async with httpx.AsyncClient(timeout=45.0) as client:
         try:
-            r = await client.post(url, json={"server_bridge_ip": bridge_ip})
+            r = await client.post(url, json=payload)
             r.raise_for_status()
             return r.json()
         except httpx.HTTPError as e:
