@@ -21,7 +21,7 @@ err() { printf '\033[1;31mERROR:\033[0m %s\n' "$*" >&2; exit 1; }
 command -v git >/dev/null 2>&1    || err "git is not installed."
 command -v docker >/dev/null 2>&1 || err "docker is not installed."
 docker compose version >/dev/null 2>&1 || err "docker compose (v2) is not available."
-docker info >/dev/null 2>&1        || err "cannot talk to the Docker daemon (is it running / are you in the docker group?)."
+docker info >/dev/null 2>&1        || err "cannot talk to the Docker daemon. If dockerd is running, your user is likely not in the 'docker' group: run  sudo usermod -aG docker \$USER  then re-login (or 'newgrp docker') and retry."
 
 # --- clone or update --------------------------------------------------------
 if [ -d "$TARGET_DIR/.git" ]; then

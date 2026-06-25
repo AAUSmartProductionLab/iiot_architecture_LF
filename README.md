@@ -30,6 +30,14 @@ MQTT `1883`.
 
 - Docker + Docker Compose v2 on both machines, on the **same LAN** (mDNS + bridge need it).
 - A **Windows/macOS** edge server also needs **Python 3.11** (the orchestrator runs on the host for mDNS).
+- On **Linux** (incl. Raspberry Pi), add your user to the `docker` group so the scripts can reach
+  the daemon without `sudo` (otherwise you get `permission denied … /var/run/docker.sock`):
+
+  ```bash
+  sudo usermod -aG docker $USER   # grant docker access
+  newgrp docker                   # apply it to the current shell (or just log out / back in)
+  docker info                     # verify: the "Server" section should now appear
+  ```
 
 ## Quick start (scripts)
 
