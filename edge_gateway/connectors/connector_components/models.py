@@ -1,65 +1,70 @@
 """
-Data Classes for the OT adapters.
+Pydantic data models for the OT adapters.
+
+Each client takes a typed *Config and each read/write takes a typed *Request, so
+bad parameters fail fast with a clear ValidationError instead of surfacing as an
+obscure protocol error deeper in.
 """
 
-from dataclasses import dataclass
-from typing import Literal, Any, Dict
+from typing import Any, Literal
 
-#---------------------------
-# Modbus TCP Data Classes
-#---------------------------
+from pydantic import BaseModel
 
-@dataclass
-class ModbusTCPClientConfig:
+# ---------------------------
+# Modbus TCP Data Models
+# ---------------------------
+
+
+class ModbusTCPClientConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 502
     timeout: int = 4
 
-@dataclass
-class ModbusReadRequest:
-    reg_address: int = 1
+
+class ModbusReadRequest(BaseModel):
     type: Literal["coil", "discrete", "holding", "input"]
+    reg_address: int = 1
     count: int = 1
     retries: int = 2
 
-#---------------------------
-# OPC UA Data Classes
-#---------------------------
 
-@dataclass
-class OPCUAClientConfig:
+# ---------------------------
+# OPC UA Data Models
+# ---------------------------
+
+
+class OPCUAClientConfig(BaseModel):
     url: str
     timeout: int = 4
 
-@dataclass
-class OPCUAReadRequest:
+
+class OPCUAReadRequest(BaseModel):
     node_id: str
     retries: int = 2
 
-@dataclass
-class OPCUAWriteRequest:
+
+class OPCUAWriteRequest(BaseModel):
     node_id: str
     value: Any
     retries: int = 2
 
-#---------------------------
-# MQTT Data Classes
-#---------------------------
 
-#---------------------------
-# Snap7 Data Classes
-#---------------------------
+# ---------------------------
+# Snap7 Data Models
+# ---------------------------
 
-@dataclass
-class S7ClientConfig:
+
+class S7ClientConfig(BaseModel):
     host: str
     rack: int = 0
     slot: int = 1
 
-@dataclass
-class S7ReadRequest:
+
+class S7ReadRequest(BaseModel):
     db_number: int
     start: int
     size: int
-    datatype: Literal["real", "lreral", "float", "float32", "float64", "int", "dint", "bytes"] = "real"
+    datatype: Literal[
+        "real", "lreal", "float", "float32", "float64", "int", "dint", "bytes"
+    ] = "real"
     retries: int = 2

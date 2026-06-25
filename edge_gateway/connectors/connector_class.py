@@ -17,6 +17,7 @@ import logging
 import time
 
 from .config_model import ConnectorConfig
+from .connector_components.models import S7ClientConfig
 from .connector_components.mqtt_pub_class import MqttPublisher
 from .connector_components.s7_client_class import S7Client
 
@@ -91,7 +92,13 @@ class Connector:
                 raise ValueError("opcua adapter unavailable (client integration in progress)")
             return AsyncOPCUAClient(c.connection.endpoint_url)
         if c.protocol == "s7":
-            return S7Client(c.connection.host, c.connection.rack, c.connection.slot)
+            return S7Client(
+                S7ClientConfig(
+                    host=c.connection.host,
+                    rack=c.connection.rack,
+                    slot=c.connection.slot,
+                )
+            )
         raise ValueError(f"unsupported protocol: {c.protocol}")
 
     def _publish(self, dp: dict, value):

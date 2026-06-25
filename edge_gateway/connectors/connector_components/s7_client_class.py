@@ -4,7 +4,7 @@ import asyncio
 import logging
 import snap7.util as su
 from snap7.client import Client
-from iiot_architecture_LF.edge_gateway.connectors.connector_components.models import S7ClientConfig, S7ReadRequest
+from .models import S7ClientConfig, S7ReadRequest
 
 logger = logging.getLogger(__name__)
 
@@ -76,8 +76,16 @@ class S7Client:
         while True:
             for dp in datapoints:
                 try:
-                    value = await asyncio.to_thread(self.read_datapoint, dp)
+                    addr = dp.get("address", {}) or {}
+                    request = S7ReadRequest(
+                        db_number=int(addr.get("db_number", 1)),
+                        start=int(addr.get("start", 0)),
+                        size=int(addr.get("size", 4)),
+                        datatype=dp.get("datatype", "real"),
+                    )
+                    result = await asyncio.to_thread(self.read, request)
+                    value = next(iter(result.values())) if result else None
                     on_value(dp, value)
                 except Exception as e:
-                    print(f"S7 read failed for {dp.get('name')}: {e}")
+                    logger.error(f"S7 read failed for {dp.get('name')}: {e}")
             await asyncio.sleep(interval)
