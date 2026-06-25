@@ -31,48 +31,86 @@ MQTT `1883`.
 - Docker + Docker Compose v2 on both machines, on the **same LAN** (mDNS + bridge need it).
 - A **Windows/macOS** edge server also needs **Python 3.11** (the orchestrator runs on the host for mDNS).
 
-## Run — edge server
+## Quick start (scripts)
+
+Each role ships an `install.sh` (clone + build + start) and a `redeploy.sh`
+(rebuild + restart an existing checkout). Both default to **host networking** so
+mDNS auto-discovery works on Linux.
+
+### Edge server
 
 ```bash
-cd edge_server
-docker compose build
+# one-liner: clone into ~/iiot_architecture_LF, build, start
+curl -fsSL https://raw.githubusercontent.com/AAUSmartProductionLab/iiot_architecture_LF/main/edge_server/install.sh | bash
 
-# Linux (orchestrator on host network for mDNS):
-docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d
-
-# Windows/macOS (containers can't get LAN mDNS → run the orchestrator on the host):
-docker compose up -d timescale hivemq aas-environment aas-gui dashboard timescale-ingestor
-python -m venv .venv && .venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python -m uvicorn orchestrator.main:app --app-dir . --host 0.0.0.0 --port 8000
+# from a checkout: rebuild + restart (data volumes preserved)
+cd edge_server && ./redeploy.sh
 ```
 
 Dashboard → http://localhost:5173 · AAS viewer → http://localhost:8082
 
-## Run — edge gateway
+### Edge gateway
 
 ```bash
-cd edge_gateway
-docker compose --profile build build
-docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d
+curl -fsSL https://raw.githubusercontent.com/AAUSmartProductionLab/iiot_architecture_LF/main/edge_gateway/install.sh | bash
 
-# Optional: S7 PLC simulator for testing without real hardware (joins the
-# gateway network; start it after the stack is up):
-docker compose -f docker-compose.sim.yml up -d --build
+cd edge_gateway && ./redeploy.sh          # rebuild + restart
+cd edge_gateway && ./redeploy.sh --sim    # also (re)build + restart the S7 simulator
 ```
 
-The gateway-agent restarts HiveMQ every `BRIDGE_RESTART_HOURS` (default 4) to
-keep the bridge extension's trial alive.
+The gateway `redeploy.sh` rebuilds the images, removes stale per-connector adapter
+containers, seeds the bridge `config.xml` from its template if missing, clears the
+HiveMQ `DISABLED` marker, and restarts the stack in order (broker → agent).
+
+### Script options
+
+| Option | Where | Effect |
+| --- | --- | --- |
+| `USE_HOST_NET=0` | both, env var | Bridge networking instead of host. Use on **Windows/macOS** Docker Desktop (host mode binds the VM, not the LAN). No mDNS → register gateways with the dashboard's **Register manually** button. |
+| `--sim` | gateway `redeploy.sh` | Rebuild + restart the S7 PLC simulator (its own compose project; started after the gateway so it can join `gateway-net`). |
+| `BRANCH` / `TARGET_DIR` / `REPO_URL` | `install.sh`, env vars | Pin a branch, change the install location, or use a fork. |
+
+Examples: `USE_HOST_NET=0 ./redeploy.sh` · `curl -fsSL <url> | USE_HOST_NET=0 bash`
+
+The gateway-agent restarts HiveMQ every `BRIDGE_RESTART_HOURS` (default 4) to keep
+the bridge extension's trial alive.
 
 ## Use it
 
-In the dashboard: the gateway appears under **Gateways** (auto-discovered; or **Register gateway**
-manually) → **Configure MQTT bridge** (server IP pre-filled) → **Add connector** (pick protocol,
-fill fields, provision). **Devices** shows latest values; **Asset Shells** renders the full AAS.
+In the dashboard: the gateway appears under **Gateways** (auto-discovered, or
+**Register manually**) → **Configure MQTT bridge** (server IP pre-filled) → **Add
+connector** (a wizard: pick protocol, fill fields, provision — it then reports
+whether the connector actually connected). **Devices** shows latest values and
+each connector's connection status; **AAS** renders the full Asset Administration
+Shell plus a network-topology view; **Logs** streams the gateway agent, the
+broker, and per-connector container logs.
+
+## Manual / advanced
+
+Without the scripts — or to run the orchestrator on the host (Windows/macOS dev,
+where containers can't get LAN mDNS):
+
+```bash
+# edge server — containerized
+cd edge_server && docker compose build
+docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d   # Linux (mDNS)
+docker compose up -d                                                     # Windows/macOS (no mDNS)
+
+# edge server — orchestrator on the host (Windows/macOS)
+docker compose up -d timescale hivemq aas-environment aas-gui dashboard timescale-ingestor
+python -m venv .venv && .venv\Scripts\pip install -r requirements.txt
+.venv\Scripts\python -m uvicorn orchestrator.main:app --app-dir . --host 0.0.0.0 --port 8000
+
+# edge gateway — containerized
+cd edge_gateway && docker compose --profile build build
+docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d
+docker compose -p s7-sim -f docker-compose.sim.yml up -d --build   # optional S7 simulator
+```
 
 ## Stop
 
 ```bash
-cd edge_gateway && docker compose -f docker-compose.sim.yml down   # if started
+cd edge_gateway && docker compose -p s7-sim -f docker-compose.sim.yml down            # if started
 cd edge_gateway && docker compose -f docker-compose.yaml -f docker-compose.host.yml down
-cd edge_server && docker compose down        # add -v to wipe data volumes
+cd edge_server  && docker compose -f docker-compose.yaml -f docker-compose.host.yml down   # add -v to wipe data
 ```
