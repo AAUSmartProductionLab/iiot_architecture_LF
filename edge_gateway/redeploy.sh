@@ -7,9 +7,20 @@
 # mDNS auto-discovery needs host networking (Linux only); it's ON by default.
 # On Windows/Mac Docker Desktop host mode binds the VM, not the LAN, so run:
 #   USE_HOST_NET=0 ./redeploy.sh
+#
+# Pass --sim to also (re)build and restart the S7 simulator after the gateway is
+# back up. The down/up recreates gateway-net, so the sim must be restarted after.
 set -eu
 
 cd "$(dirname "$0")"
+
+SIM=0
+for arg in "$@"; do
+  case "$arg" in
+    --sim) SIM=1 ;;
+    *) echo "unknown option: $arg" >&2; exit 2 ;;
+  esac
+done
 
 BASE="-f docker-compose.yaml"
 if [ "${USE_HOST_NET:-1}" = "1" ]; then
@@ -49,6 +60,14 @@ docker compose $BASE --profile build build
 echo "==> [5/5] Starting the stack (hivemq, then the agent)"
 docker compose $BASE $HOST up -d
 
+# Optional: restart the S7 simulator (own compose project so it doesn't treat the
+# gateway containers as orphans). Runs after the gateway so gateway-net exists.
+if [ "$SIM" = "1" ]; then
+  echo "==> Restarting the S7 simulator (--sim)"
+  docker compose -p s7-sim -f docker-compose.sim.yml down
+  docker compose -p s7-sim -f docker-compose.sim.yml up -d --build
+fi
+
 echo
 echo "Current state:"
 docker compose $BASE $HOST ps
@@ -59,6 +78,6 @@ Done.
 - Connectors are restored into the manifest from the persisted volume, but their
   adapter containers are NOT auto-relaunched. Re-provision (or delete + re-add)
   each connector in the UI to start its adapter on the freshly built image.
-- If you use the S7 simulator, restart it too (the down recreated gateway-net):
-    docker compose -f docker-compose.sim.yml up -d --build
+- The S7 simulator is left alone unless you pass --sim. To restart it manually:
+    docker compose -p s7-sim -f docker-compose.sim.yml up -d --build
 EOF
