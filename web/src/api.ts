@@ -55,10 +55,14 @@ export const api = {
       { method: "DELETE" }
     ),
   connectorStatus: () => req<ConnectorStatus[]>("/api/connectors/status"),
-  connectorLogs: (gatewayId: string, deviceKey: string, tail = 200) =>
+  connectorLogs: (gatewayId: string, deviceKey: string, tail = 1000) =>
     req<{ device_key: string; logs: string }>(
       `/api/gateways/${encodeURIComponent(gatewayId)}/connectors/${encodeURIComponent(
         deviceKey
       )}/logs?tail=${tail}`
+    ),
+  gatewayLogs: (gatewayId: string, target: "agent" | "broker", tail = 1000) =>
+    req<{ target: string; logs: string }>(
+      `/api/gateways/${encodeURIComponent(gatewayId)}/logs/${target}?tail=${tail}`
     ),
 };

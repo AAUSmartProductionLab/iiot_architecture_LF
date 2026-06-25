@@ -112,7 +112,9 @@ export default function App() {
           <AasExplorer gateways={gateways} devices={devices} measurements={measurements} />
         )}
 
-        {view === "logs" && <LogsView devices={devices} statuses={statuses} />}
+        {view === "logs" && (
+          <LogsView gateways={gateways} devices={devices} statuses={statuses} />
+        )}
       </main>
     </div>
   );

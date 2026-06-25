@@ -266,5 +266,9 @@ code { color: var(--muted); }
 .topo-node.device .topo-title { font-size: 13px; flex-wrap: wrap; }
 
 /* logs tab */
-.logs-pre { max-height: 62vh; white-space: pre-wrap; word-break: break-word; }
+.logs-pre { max-height: 68vh; min-height: 240px; white-space: pre-wrap; word-break: break-word; }
 .tree-item .small { margin-top: 2px; }
+.tree-head {
+  padding: 8px 8px 4px; font-size: 13px; font-weight: 600;
+  display: flex; align-items: center;
+}
