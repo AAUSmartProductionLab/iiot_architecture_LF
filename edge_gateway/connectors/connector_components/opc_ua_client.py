@@ -4,7 +4,7 @@ A robust async OPC-UA client adapter.
 
 import asyncio
 import logging
-from asyncua import Client, ua
+from asyncua.client.client import Client, ua
 from iiot_architecture_LF.edge_gateway.connectors.connector_components.models import OPCUAReadRequest, OPCUAWriteRequest, OPCUAClientConfig
 
 logger = logging.getLogger(__name__)
@@ -77,6 +77,9 @@ class AsyncOPCUAClient:
     
     def get_node(self, node_id: str):
         self._ensure_client()
+        # _ensure_client() guarantees client is connected, but type checkers
+        # may still consider self.client possibly None. Narrow the type here.
+        assert self.client is not None
         if node_id not in self._node_cache:
             self._node_cache[node_id] = self.client.get_node(node_id)
         return self._node_cache[node_id]
@@ -145,6 +148,7 @@ class AsyncOPCUAClient:
     # -------------------------
     async def subscribe_datachange(self, node_id: str, handler, interval=1000):
         self._ensure_client()
+        assert self.client is not None
 
         sub = await self.client.create_subscription(interval, handler)
         node = self.get_node(node_id)
@@ -163,8 +167,12 @@ class AsyncOPCUAClient:
         while True:
             for dp in datapoints:
                 node_id = (dp.get("address") or {}).get("node_id")
+                if not node_id:
+                    logger.error(f"Missing node_id for datapoint {dp.get('name')}")
+                    continue
+                request = OPCUAReadRequest(node_id=node_id)
                 try:
-                    value = await self.safe_read(node_id)
+                    value = await self.safe_read(request)
                     on_value(dp, value)
                 except Exception as e:
                     logger.error(f"OPC UA read failed for {dp.get('name')}: {e}")

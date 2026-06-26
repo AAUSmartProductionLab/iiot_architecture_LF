@@ -24,15 +24,19 @@ class S7Client:
     # Connection / Disconnection
     #----------------------------
 
-    def connect(self):
-        self.client.connect(self.host, self.rack, self.slot)
-        self.connected = self.client.get_connected()
-        logger.info(f"Connected to S7 {self.host} rack {self.rack} slot {self.slot}")
+    async def connect(self):
+        # Run connect in thread to avoid blocking
+        await asyncio.to_thread(self.client.connect, self.host, self.rack, self.slot)
+        self.connected = await asyncio.to_thread(self.client.get_connected)
+        if self.connected:
+            logger.info(f"Connected to S7 {self.host} rack {self.rack} slot {self.slot}")
+        else:
+            raise ConnectionError(f"Failed to connect to S7 {self.host}")
 
-    def disconnect(self):
+    async def disconnect(self):
         try:
             self._ensure_connected()
-            self.client.disconnect()
+            await asyncio.to_thread(self.client.disconnect)
         finally:
             self.connected = False
         
@@ -44,23 +48,27 @@ class S7Client:
     # Read
     #----------------------------
 
-    def read(self, request: S7ReadRequest):
+    async def read(self, request: S7ReadRequest):
         self._ensure_connected()
         
-        raw = self.client.db_read(
+        raw = await asyncio.to_thread(
+            self.client.db_read,
             request.db_number,
             request.start,
             request.size
         )
 
         datatype = request.datatype.lower()
+        value = None
 
         if datatype in ("real", "lreal", "float", "float32", "float64"):
             value = round(su.get_real(raw, 0), 3)
-        if datatype in ("int", "int16", "short"):
+        elif datatype in ("int", "int16", "short"):
             value = su.get_int(raw, 0)
-        if datatype in ("dint", "int32"):
+        elif datatype in ("dint", "int32"):
             value = su.get_dint(raw, 0)
+        else:
+            logger.warning(f"Unsupported datatype:{datatype}")
         
         key = f"DB{request.db_number}.{request.start}"
 
@@ -83,7 +91,7 @@ class S7Client:
                         size=int(addr.get("size", 4)),
                         datatype=dp.get("datatype", "real"),
                     )
-                    result = await asyncio.to_thread(self.read, request)
+                    result = await self.read(request)
                     value = next(iter(result.values())) if result else None
                     on_value(dp, value)
                 except Exception as e:
