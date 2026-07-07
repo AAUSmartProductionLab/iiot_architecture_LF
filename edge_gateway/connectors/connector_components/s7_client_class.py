@@ -72,7 +72,27 @@ class S7Client:
 
     async def subscribe(self, datapoints, on_value, interval=2.0):
         """Poll each datapoint every `interval`s and hand the value to on_value.
+
+        An initial read of all datapoints fires immediately on subscription so
+        current values are published without waiting for the first tick.
         snap7 is blocking, so reads run in a worker thread to stay async-friendly."""
+        # ── initial read: publish current values right away ──────────────
+        for dp in datapoints:
+            try:
+                addr = dp.get("address", {}) or {}
+                request = S7ReadRequest(
+                    db_number=int(addr.get("db_number", 1)),
+                    start=int(addr.get("start", 0)),
+                    size=int(addr.get("size", 4)),
+                    datatype=dp.get("datatype", "real"),
+                )
+                result = await asyncio.to_thread(self.read, request)
+                value = next(iter(result.values())) if result else None
+                on_value(dp, value)
+            except Exception as e:
+                logger.error(f"S7 initial read failed for {dp.get('name')}: {e}")
+
+        # ── polling loop ─────────────────────────────────────────────────
         while True:
             for dp in datapoints:
                 try:
