@@ -5,7 +5,7 @@ A robust async OPC-UA client adapter.
 import asyncio
 import logging
 from asyncua.client.client import Client, ua
-from iiot_architecture_LF.edge_gateway.connectors.connector_components.models import OPCUAReadRequest, OPCUAWriteRequest, OPCUAClientConfig
+from .models import OPCUAReadRequest, OPCUAWriteRequest, OPCUAClientConfig
 
 logger = logging.getLogger(__name__)
 
@@ -162,8 +162,26 @@ class AsyncOPCUAClient:
     # -------------------------
     async def subscribe(self, datapoints, on_value, interval=2.0):
         """Poll each datapoint every `interval`s and hand its value to on_value.
+
+        An initial read of all datapoints fires immediately on subscription so
+        current values are published without waiting for the first tick.
         Uses safe_read so a dropped connection is retried transparently. dp's
         node id is read from dp['address']['node_id']."""
+        # ── initial read: publish current values right away ──────────────
+        for dp in datapoints:
+            node_id = (dp.get("address") or {}).get("node_id")
+            if not node_id:
+                logger.error(f"Missing node_id for datapoint {dp.get('name')}")
+                continue
+            request = OPCUAReadRequest(node_id=node_id)
+            try:
+                result = await self.safe_read(request)
+                value = next(iter(result.values())) if result else None
+                on_value(dp, value)
+            except Exception as e:
+                logger.error(f"OPC UA initial read failed for {dp.get('name')}: {e}")
+
+        # ── polling loop ─────────────────────────────────────────────────
         while True:
             for dp in datapoints:
                 node_id = (dp.get("address") or {}).get("node_id")
@@ -172,7 +190,8 @@ class AsyncOPCUAClient:
                     continue
                 request = OPCUAReadRequest(node_id=node_id)
                 try:
-                    value = await self.safe_read(request)
+                    result = await self.safe_read(request)
+                    value = next(iter(result.values())) if result else None
                     on_value(dp, value)
                 except Exception as e:
                     logger.error(f"OPC UA read failed for {dp.get('name')}: {e}")

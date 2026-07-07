@@ -17,15 +17,14 @@ import logging
 import time
 
 from .config_model import ConnectorConfig
-from .connector_components.models import S7ClientConfig
+from .connector_components.models import OPCUAClientConfig, S7ClientConfig
 from .connector_components.mqtt_pub_class import MqttPublisher
 from .connector_components.s7_client_class import S7Client
 
-# The Modbus and OPC UA clients are mid-rework (dataclass-based config + a
-# `models.models` import) and are not yet wired to this Connector's uniform
-# dict-based interface. Import them defensively so an in-progress / incompatible
-# client module can't take down the whole adapter — S7 still works. A clear error
-# is raised in _make_client only if one of those protocols is actually requested.
+# Modbus and OPC UA clients are imported defensively so an in-progress /
+# incompatible client module can't take down the whole adapter — S7 still works.
+# A clear error is raised in _make_client only if one of those protocols is
+# actually requested.
 try:
     from .connector_components.modbus_async_tcp_client_class import AsyncModbusClient
 except Exception:  # noqa: BLE001 - tolerate an in-progress client module
@@ -90,7 +89,9 @@ class Connector:
         if c.protocol == "opcua":
             if AsyncOPCUAClient is None:
                 raise ValueError("opcua adapter unavailable (client integration in progress)")
-            return AsyncOPCUAClient(c.connection.endpoint_url)
+            return AsyncOPCUAClient(
+                OPCUAClientConfig(url=c.connection.endpoint_url)
+            )
         if c.protocol == "s7":
             return S7Client(
                 S7ClientConfig(
