@@ -94,7 +94,7 @@ class S7Client:
                     size=int(addr.get("size", 4)),
                     datatype=dp.get("datatype", "real"),
                 )
-                result = await asyncio.to_thread(self.read, request)
+                result = await self.read(request)
                 value = next(iter(result.values())) if result else None
                 on_value(dp, value)
             except Exception as e:
