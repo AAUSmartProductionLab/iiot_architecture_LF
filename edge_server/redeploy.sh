@@ -25,6 +25,9 @@ echo "==> [2/3] Building images (orchestrator, ingestor, dashboard)"
 docker compose $BASE build
 
 echo "==> [3/3] Starting the stack"
+# Safety-net: force-remove any leftover containers that share the fixed
+# container_name values, in case a previous compose down didn't clean up.
+docker rm -f timescale hivemq aas-environment aas-gui 2>/dev/null || true
 docker compose $BASE $HOST up -d
 
 echo
