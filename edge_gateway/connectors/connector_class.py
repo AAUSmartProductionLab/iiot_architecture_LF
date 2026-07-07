@@ -90,7 +90,7 @@ class Connector:
             if AsyncOPCUAClient is None:
                 raise ValueError("opcua adapter unavailable (client integration in progress)")
             return AsyncOPCUAClient(
-                OPCUAClientConfig(url=c.connection.endpoint_url)
+                OPCUAClientConfig(url=c.connection.endpoint_url, timeout=15)
             )
         if c.protocol == "s7":
             return S7Client(
