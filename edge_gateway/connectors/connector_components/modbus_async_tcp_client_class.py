@@ -5,7 +5,7 @@ A Class to implement a synchronous MODBUS TCP client connector.
 from pymodbus.client import AsyncModbusTcpClient
 from iiot_architecture_LF.edge_gateway.connectors.connector_components.models import ModbusTCPClientConfig, ModbusReadRequest
 import logging
-from asyncio import sleep
+import asyncio 
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +35,17 @@ class AsyncModbusClient:
             logger.error("Failed to connect.")
 
     async def disconnect(self):
-        await self.client.close()
-        self.connected = False
-        logger.info("Disconnected from modbus server.")
+        if self.client is None:
+            logger.warning("Attempted to disconnect, but client is None.")
+            self.connected = False
+            return
+        try:
+            await asyncio.to_thread(self.client.close)
+        except Exception as e:
+            logger.error(f"Error while closing Modbus client: {e}")
+        finally:
+            self.connected = False
+            logger.info("Disconnected from modbus server.")
 
     # -------------------------
     # Read Coils
@@ -141,5 +149,5 @@ class AsyncModbusClient:
                 if i == request.retries - 1:
                     raise
                 await self.disconnect()
-                await sleep(0.2)
+                await asyncio.sleep(0.2)
                 await self.connect()

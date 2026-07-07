@@ -63,6 +63,9 @@ echo "==> [4/5] Building images (gateway-agent + connector-adapter)"
 docker compose $BASE --profile build build
 
 echo "==> [5/5] Starting the stack (hivemq, then the agent)"
+# Safety-net: force-remove any leftover containers that share the fixed
+# container_name values, in case a previous compose down didn't clean up.
+docker rm -f hivemq gateway-agent 2>/dev/null || true
 docker compose $BASE $HOST up -d
 
 # Optional: restart the S7 simulator (own compose project so it doesn't treat the
