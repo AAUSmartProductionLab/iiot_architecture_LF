@@ -18,6 +18,7 @@ from pydantic import BaseModel
 class ModbusTCPClientConfig(BaseModel):
     host: str = "127.0.0.1"
     port: int = 502
+    unit_id: int = 1
     timeout: int = 4
 
 
@@ -34,7 +35,7 @@ class ModbusReadRequest(BaseModel):
 
 
 class OPCUAClientConfig(BaseModel):
-    url: str
+    endpoint_url: str
     timeout: int = 4
 
 
