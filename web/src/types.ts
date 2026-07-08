@@ -60,7 +60,7 @@ export interface ConnectorStatus {
 export interface Measurement {
   device: string;
   datapoint: string;
-  value: number | null;
+  value: unknown | null;
   unit: string | null;
   time: string | null;
   topic: string | null;

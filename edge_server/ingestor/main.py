@@ -68,7 +68,7 @@ def on_message(client, userdata, msg) -> None:
     try:
         ts.insert(
             msg.topic,
-            payload.get("value"),
+            payload,
             meta.get("device"),
             meta.get("datapoint"),
             meta.get("unit"),

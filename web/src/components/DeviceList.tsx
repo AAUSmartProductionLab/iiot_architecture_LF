@@ -4,6 +4,19 @@ import type { ConnectorStatus, Device, Measurement } from "../types";
 import { Modal } from "./Modal";
 import { Badge, Button, ConnState } from "./ui";
 
+/** Extract a human-readable value from a JSONB measurement value. */
+function fmtValue(v: unknown): string {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "object" && !Array.isArray(v)) {
+    const obj = v as Record<string, unknown>;
+    if ("value" in obj && obj.value !== null && obj.value !== undefined) {
+      return String(obj.value);
+    }
+    return JSON.stringify(v);
+  }
+  return String(v);
+}
+
 export function DeviceList({
   devices,
   measurements = [],
@@ -53,7 +66,7 @@ export function DeviceList({
                       <div className="dc-point" key={p.name}>
                         <code>{p.name}{p.unit ? ` (${p.unit})` : ""}</code>
                         {m && m.value !== null ? (
-                          <strong>{m.value}{m.unit ? ` ${m.unit}` : ""}</strong>
+                          <strong>{fmtValue(m.value)}{m.unit ? ` ${m.unit}` : ""}</strong>
                         ) : (
                           <span className="muted">no data</span>
                         )}

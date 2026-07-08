@@ -3,6 +3,7 @@
 No per-device tables — new devices add rows, not columns.
 """
 
+import json
 import logging
 
 import psycopg
@@ -29,7 +30,7 @@ class Timescale:
                     topic     text NOT NULL,
                     device    text,
                     datapoint text,
-                    value     double precision,
+                    value     jsonb,
                     unit      text
                 );
                 """
@@ -89,8 +90,8 @@ class Timescale:
                     raise
                 self.connect()
 
-    def insert(self, topic, value, device, datapoint, unit, ts=None) -> None:
-        v = float(value) if isinstance(value, (int, float)) else None
+    def insert(self, topic, payload, device, datapoint, unit, ts=None) -> None:
+        v = json.dumps(payload) if not isinstance(payload, str) else payload
         if ts:
             self._exec(
                 "INSERT INTO measurements (time, topic, device, datapoint, value, unit) "

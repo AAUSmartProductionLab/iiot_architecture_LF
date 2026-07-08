@@ -102,6 +102,7 @@ services:
       - BASYX_URL=http://aas-environment:8081
       - AAS_BASE_URL=https://smart-production.aau.dk
       - LIVENESS_INTERVAL=20
+      - TS_DSN=postgresql://postgres:admin@timescale:5432/postgres
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
