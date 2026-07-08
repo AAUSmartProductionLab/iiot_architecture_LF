@@ -84,16 +84,26 @@ class S7Client:
         An initial read of all datapoints fires immediately on subscription so
         current values are published without waiting for the first tick.
         snap7 is blocking, so reads run in a worker thread to stay async-friendly."""
+
+        def _build_request(dp: dict) -> S7ReadRequest | None:
+            addr = dp.get("address", {}) or {}
+            db = addr.get("db_number")
+            if db is None:
+                logger.error(f"S7 missing db_number for datapoint {dp.get('name')}")
+                return None
+            return S7ReadRequest(
+                db_number=int(db),
+                start=int(addr.get("start", 0)),
+                size=int(addr.get("size", 4)),
+                datatype=dp.get("datatype", "real"),
+            )
+
         # ── initial read: publish current values right away ──────────────
         for dp in datapoints:
             try:
-                addr = dp.get("address", {}) or {}
-                request = S7ReadRequest(
-                    db_number=int(addr.get("db_number", 1)),
-                    start=int(addr.get("start", 0)),
-                    size=int(addr.get("size", 4)),
-                    datatype=dp.get("datatype", "real"),
-                )
+                request = _build_request(dp)
+                if request is None:
+                    continue
                 result = await self.read(request)
                 value = next(iter(result.values())) if result else None
                 on_value(dp, value)
@@ -104,13 +114,9 @@ class S7Client:
         while True:
             for dp in datapoints:
                 try:
-                    addr = dp.get("address", {}) or {}
-                    request = S7ReadRequest(
-                        db_number=int(addr.get("db_number", 1)),
-                        start=int(addr.get("start", 0)),
-                        size=int(addr.get("size", 4)),
-                        datatype=dp.get("datatype", "real"),
-                    )
+                    request = _build_request(dp)
+                    if request is None:
+                        continue
                     result = await self.read(request)
                     value = next(iter(result.values())) if result else None
                     on_value(dp, value)

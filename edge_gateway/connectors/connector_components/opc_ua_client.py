@@ -12,9 +12,9 @@ logger = logging.getLogger(__name__)
 
 class AsyncOPCUAClient:
     def __init__(self, config: OPCUAClientConfig):
-        self.url = config.url
-        if not self.url:
-            raise ValueError("Missing OPC UA URL argument.")
+        self.endpoint_url = config.endpoint_url
+        if not self.endpoint_url:
+            raise ValueError("Missing OPC UA endpoint_url argument.")
 
         self.timeout = config.timeout
         self.client: Client | None = None
@@ -30,10 +30,10 @@ class AsyncOPCUAClient:
             return
 
         try:
-            self.client = Client(self.url, timeout=self.timeout)
+            self.client = Client(self.endpoint_url, timeout=self.timeout)
             await self.client.connect()
             self._connected = True
-            logger.info(f"Connected to {self.url}")
+            logger.info(f"Connected to {self.endpoint_url}")
         except Exception as e:
             logger.error(f"Connection failed: {e}")
             self._connected = False

@@ -17,7 +17,7 @@ import logging
 import time
 
 from .config_model import ConnectorConfig
-from .connector_components.models import OPCUAClientConfig, S7ClientConfig
+from .connector_components.models import ModbusTCPClientConfig, OPCUAClientConfig, S7ClientConfig
 from .connector_components.mqtt_pub_class import MqttPublisher
 from .connector_components.s7_client_class import S7Client
 
@@ -77,33 +77,35 @@ class Connector:
             config.mqtt.broker_port,
             client_id=config.device_key,
         )
+        # Report-by-exception: only publish when a value actually changes.
+        self._last_values: dict[str, float | int | str | None] = {}
 
     def _make_client(self):
-        # The discriminated union guarantees `protocol` is one of these three and
-        # that `connection` is the matching typed model.
         c = self.config
         if c.protocol == "modbus-tcp":
             if AsyncModbusClient is None:
                 raise ValueError("modbus-tcp adapter unavailable (client integration in progress)")
-            return AsyncModbusClient(c.connection.model_dump())
+            return AsyncModbusClient(
+                ModbusTCPClientConfig(**c.connection.model_dump())
+            )
         if c.protocol == "opcua":
             if AsyncOPCUAClient is None:
                 raise ValueError("opcua adapter unavailable (client integration in progress)")
             return AsyncOPCUAClient(
-                OPCUAClientConfig(url=c.connection.endpoint_url, timeout=15)
+                OPCUAClientConfig(**c.connection.model_dump())
             )
         if c.protocol == "s7":
             return S7Client(
-                S7ClientConfig(
-                    host=c.connection.host,
-                    rack=c.connection.rack,
-                    slot=c.connection.slot,
-                )
+                S7ClientConfig(**c.connection.model_dump())
             )
         raise ValueError(f"unsupported protocol: {c.protocol}")
 
     def _publish(self, dp: dict, value):
         topic = dp.get("local_topic") or f"devices/{dp.get('name')}"
+        # Report-by-exception: skip when value hasn't changed.
+        if topic in self._last_values and self._last_values[topic] == value:
+            return
+        self._last_values[topic] = value
         payload = json.dumps({"value": value, "ts": time.time()})
         # Publish JSON {value, ts} straight to the datapoint topic — the shape the
         # server ingestor expects (it json.loads the payload and reads `value`/`ts`,

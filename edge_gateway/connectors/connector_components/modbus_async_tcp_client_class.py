@@ -3,7 +3,7 @@ A Class to implement a synchronous MODBUS TCP client connector.
 """
 
 from pymodbus.client import AsyncModbusTcpClient
-from iiot_architecture_LF.edge_gateway.connectors.connector_components.models import ModbusTCPClientConfig, ModbusReadRequest
+from .models import ModbusTCPClientConfig, ModbusReadRequest
 import logging
 import asyncio 
 
@@ -40,7 +40,7 @@ class AsyncModbusClient:
             self.connected = False
             return
         try:
-            await asyncio.to_thread(self.client.close)
+            self.client.close()
         except Exception as e:
             logger.error(f"Error while closing Modbus client: {e}")
         finally:
@@ -151,3 +151,43 @@ class AsyncModbusClient:
                 await self.disconnect()
                 await asyncio.sleep(0.2)
                 await self.connect()
+
+    # -------------------------
+    # Subscribe (poll loop)
+    # -------------------------
+
+    async def subscribe(self, datapoints, on_value, interval=2.0):
+        """Poll each datapoint every `interval`s and hand its value to on_value.
+
+        An initial read fires immediately on subscription. dp's register address
+        and type are read from dp['address']['register'] and
+        dp['address']['register_type']."""
+        # ── initial read ──────────────────────────────────────────────
+        for dp in datapoints:
+            try:
+                result = await self._read_from_dp(dp)
+                value = next(iter(result.values())) if result else None
+                on_value(dp, value)
+            except Exception as e:
+                logger.error(f"Modbus initial read failed for {dp.get('name')}: {e}")
+
+        # ── polling loop ──────────────────────────────────────────────
+        while True:
+            for dp in datapoints:
+                try:
+                    result = await self._read_from_dp(dp)
+                    value = next(iter(result.values())) if result else None
+                    on_value(dp, value)
+                except Exception as e:
+                    logger.error(f"Modbus read failed for {dp.get('name')}: {e}")
+            await asyncio.sleep(interval)
+
+    async def _read_from_dp(self, dp: dict):
+        """Build a ModbusReadRequest from a datapoint dict and read via safe_read."""
+        addr = dp.get("address", {}) or {}
+        request = ModbusReadRequest(
+            type=addr.get("register_type", "holding"),
+            reg_address=int(addr.get("register", 1)),
+            count=int(addr.get("quantity", 1)),
+        )
+        return await self.safe_read(request)
