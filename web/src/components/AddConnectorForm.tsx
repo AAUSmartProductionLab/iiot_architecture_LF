@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../api";
-import { defaults, type Field, PROTOCOLS, schemaFor } from "../protocols";
+import { COMMON_DATATYPES, defaults, type Field, PROTOCOLS, schemaFor } from "../protocols";
 import { Modal } from "./Modal";
 import { Button } from "./ui";
 
@@ -124,8 +124,17 @@ function ConnectorWizard({
 
   const setIdentF = (k: keyof typeof ident) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setIdent({ ...ident, [k]: e.target.value });
-  const setDpF = (k: keyof typeof dp) => (e: React.ChangeEvent<HTMLInputElement>) =>
-    setDp({ ...dp, [k]: e.target.value });
+  const setDpF =
+    (k: keyof typeof dp) =>
+    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+      const v = e.target.value;
+      const next = { ...dp, [k]: v };
+      // Auto-fill local_topic when name changes (unless user already set one).
+      if (k === "name" && !dp.local_topic) {
+        next.local_topic = `devices/${v}`;
+      }
+      setDp(next);
+    };
 
   const canNext =
     step === 1
@@ -277,7 +286,11 @@ function ConnectorWizard({
           </div>
           <div className="field">
             <label>Datatype</label>
-            <input value={dp.datatype} onChange={setDpF("datatype")} />
+            <select value={dp.datatype} onChange={setDpF("datatype")}>
+              {(schema.datatypes.length ? schema.datatypes : COMMON_DATATYPES).map((dt) => (
+                <option key={dt} value={dt}>{dt}</option>
+              ))}
+            </select>
           </div>
           <div className="field">
             <label>Unit</label>

@@ -14,14 +14,24 @@ export interface Field {
 export interface ProtocolSchema {
   id: string;
   label: string;
-  connection: Field[]; // connector-level connection params
-  datapoint: Field[]; // per-datapoint source addressing (sent as datapoint.address)
+  datatypes: string[];  // supported datatypes for this protocol
+  connection: Field[];
+  datapoint: Field[];
 }
+
+/** Datatypes common across all protocols. */
+export const COMMON_DATATYPES = [
+  "float32", "float64",
+  "int16", "int32", "uint8", "uint16", "uint32",
+  "real", "dint", "bytes",
+  "bool", "string",
+];
 
 export const PROTOCOLS: ProtocolSchema[] = [
   {
     id: "modbus-tcp",
     label: "Modbus TCP",
+    datatypes: ["float32", "float64", "int16", "int32", "uint16", "uint32"],
     connection: [
       { key: "host", label: "Host", required: true },
       { key: "port", label: "Port", default: "502", type: "number" },
@@ -36,12 +46,14 @@ export const PROTOCOLS: ProtocolSchema[] = [
   {
     id: "opcua",
     label: "OPC UA",
+    datatypes: ["float32", "float64", "int16", "int32", "uint8", "uint16", "uint32", "bool", "string"],
     connection: [{ key: "endpoint_url", label: "Endpoint URL", default: "opc.tcp://host:4840", required: true }],
     datapoint: [{ key: "node_id", label: "Node ID", default: "ns=2;s=", required: true }],
   },
   {
     id: "s7",
     label: "Siemens S7 (snap7)",
+    datatypes: ["real", "dint", "int", "bytes", "bool"],
     connection: [
       { key: "host", label: "Host", required: true },
       { key: "rack", label: "Rack", default: "0", type: "number" },
@@ -57,6 +69,7 @@ export const PROTOCOLS: ProtocolSchema[] = [
   {
     id: "usb",
     label: "USB HID",
+    datatypes: COMMON_DATATYPES,
     connection: [
       { key: "vendor_id", label: "Vendor ID", default: "0x0000", required: true },
       { key: "product_id", label: "Product ID", default: "0x0000", required: true },
