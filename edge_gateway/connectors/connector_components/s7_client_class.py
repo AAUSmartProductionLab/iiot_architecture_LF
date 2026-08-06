@@ -78,27 +78,43 @@ class S7Client:
     # Subscribe
     #----------------------------
 
-    async def subscribe(self, datapoints, on_value, interval=2.0):
-        """Poll each datapoint every `interval`s and hand the value to on_value.
+async def subscribe(self, datapoints, on_value, interval=2.0, deadband=0.0):
+    """Poll each datapoint every `interval`s and hand the value to on_value.
+    
+    deadband: minimum change in value required to trigger on_value. 
+    Set to 0.0 to disable (publish every reading)."""
 
-        An initial read of all datapoints fires immediately on subscription so
-        current values are published without waiting for the first tick.
-        snap7 is blocking, so reads run in a worker thread to stay async-friendly."""
+    last_values = {}  # track last published value per datapoint
 
-        def _build_request(dp: dict) -> S7ReadRequest | None:
-            addr = dp.get("address", {}) or {}
-            db = addr.get("db_number")
-            if db is None:
-                logger.error(f"S7 missing db_number for datapoint {dp.get('name')}")
-                return None
-            return S7ReadRequest(
-                db_number=int(db),
-                start=int(addr.get("start", 0)),
-                size=int(addr.get("size", 4)),
-                datatype=dp.get("datatype", "real"),
-            )
+    def _build_request(dp: dict) -> S7ReadRequest | None:
+        addr = dp.get("address", {}) or {}
+        db = addr.get("db_number")
+        if db is None:
+            logger.error(f"S7 missing db_number for datapoint {dp.get('name')}")
+            return None
+        return S7ReadRequest(
+            db_number=int(db),
+            start=int(addr.get("start", 0)),
+            size=int(addr.get("size", 4)),
+            datatype=dp.get("datatype", "real"),
+        )
 
-        # ── initial read: publish current values right away ──────────────
+    # ── initial read: publish current values right away ──────────────
+    for dp in datapoints:
+        try:
+            request = _build_request(dp)
+            if request is None:
+                continue
+            result = await self.read(request)
+            value = next(iter(result.values())) if result else None
+            if value is not None:
+                on_value(dp, value)
+                last_values[dp.get("name")] = value
+        except Exception as e:
+            logger.error(f"S7 initial read failed for {dp.get('name')}: {e}")
+
+    # ── polling loop ─────────────────────────────────────────────────
+    while True:
         for dp in datapoints:
             try:
                 request = _build_request(dp)
@@ -106,20 +122,17 @@ class S7Client:
                     continue
                 result = await self.read(request)
                 value = next(iter(result.values())) if result else None
-                on_value(dp, value)
-            except Exception as e:
-                logger.error(f"S7 initial read failed for {dp.get('name')}: {e}")
+                if value is None:
+                    continue
 
-        # ── polling loop ─────────────────────────────────────────────────
-        while True:
-            for dp in datapoints:
-                try:
-                    request = _build_request(dp)
-                    if request is None:
-                        continue
-                    result = await self.read(request)
-                    value = next(iter(result.values())) if result else None
+                name = dp.get("name")
+                last = last_values.get(name)
+
+                # publish if no previous value, or change exceeds deadband
+                if last is None or abs(value - last) > deadband:
                     on_value(dp, value)
-                except Exception as e:
-                    logger.error(f"S7 read failed for {dp.get('name')}: {e}")
-            await asyncio.sleep(interval)
+                    last_values[name] = value
+
+            except Exception as e:
+                logger.error(f"S7 read failed for {dp.get('name')}: {e}")
+        await asyncio.sleep(interval)
