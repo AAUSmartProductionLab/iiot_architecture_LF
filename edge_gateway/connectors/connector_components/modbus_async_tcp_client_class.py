@@ -20,14 +20,23 @@ class AsyncModbusClient:
 
         self.connected = False
 
-        # Initialise Client
-        self.client = AsyncModbusTcpClient(host=self.host, port=self.port, timeout=self.timeout)
+        # NOTE: The pymodbus client is *not* created here. pymodbus 3.x grabs the
+        # running event loop at construction time (asyncio.get_running_loop()
+        # inside transport.py), so building it in __init__ blows up with
+        # "RuntimeError: no running event loop" whenever this class is
+        # instantiated before asyncio.run() has started the loop (e.g. inside a
+        # synchronous Connector.__init__). Instead we create it lazily in
+        # connect(), which only ever runs inside a live event loop.
+        self.client = None
 
     # -------------------------
     # Connect / disconnect
     # -------------------------
 
     async def connect(self):
+        if self.client is None:
+            self.client = AsyncModbusTcpClient(host=self.host, port=self.port, timeout=self.timeout)
+
         if await self.client.connect():
             self.connected = True
             logger.info(f"Connected to Modbus Server at {self.host}:{self.port}")
@@ -107,9 +116,11 @@ class AsyncModbusClient:
         Returns a dictionary: data = {  "register1" : value1,
                                         "register2" : value2, ...} 
         """
+        # Check connection
         if not self.connected:
             raise RuntimeError("Not connected to Modbus server")
 
+        # Read values from request arguments to local variables
         reg_type = request.type
         reg_address = request.reg_address
         count = request.count
@@ -128,6 +139,7 @@ class AsyncModbusClient:
             # Read Input Registers
             data = await self._read_input_registers(reg_address=reg_address, count=count, unit_id=unit_id)
         else:
+            # Raise an error
             raise ValueError(f"Invalid register type: {reg_type}")
         
         return {
@@ -155,27 +167,18 @@ class AsyncModbusClient:
     # Subscribe (poll loop)
     # -------------------------
 
-    async def subscribe(self, datapoints, on_value, interval=2.0, deadband=0.0):
+    async def subscribe(self, datapoints, on_value, interval=2.0):
         """Poll each datapoint every `interval`s and hand its value to on_value.
 
         An initial read fires immediately on subscription. dp's register address
         and type are read from dp['address']['register'] and
-        dp['address']['register_type'].
-        
-        deadband: minimum change in value required to trigger on_value.
-        Set to 0.0 to disable (publish every reading). For boolean/discrete
-        values deadband is ignored and every change is published."""
-
-        last_values = {}  # track last published value per datapoint
-
+        dp['address']['register_type']."""
         # ── initial read ──────────────────────────────────────────────
         for dp in datapoints:
             try:
                 result = await self._read_from_dp(dp)
                 value = next(iter(result.values())) if result else None
-                if value is not None:
-                    on_value(dp, value)
-                    last_values[dp.get("name")] = value
+                on_value(dp, value)
             except Exception as e:
                 logger.error(f"Modbus initial read failed for {dp.get('name')}: {e}")
 
@@ -185,23 +188,7 @@ class AsyncModbusClient:
                 try:
                     result = await self._read_from_dp(dp)
                     value = next(iter(result.values())) if result else None
-                    if value is None:
-                        continue
-
-                    name = dp.get("name")
-                    last = last_values.get(name)
-
-                    # for booleans, publish on any change regardless of deadband
-                    if isinstance(value, bool):
-                        if last is None or value != last:
-                            on_value(dp, value)
-                            last_values[name] = value
-                    # for numeric values, apply deadband
-                    else:
-                        if last is None or abs(value - last) > deadband:
-                            on_value(dp, value)
-                            last_values[name] = value
-
+                    on_value(dp, value)
                 except Exception as e:
                     logger.error(f"Modbus read failed for {dp.get('name')}: {e}")
             await asyncio.sleep(interval)
