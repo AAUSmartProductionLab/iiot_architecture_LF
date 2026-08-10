@@ -16,7 +16,8 @@ class AsyncModbusClient:
         self.host = config.host
         self.port = config.port
         self.timeout = config.timeout
-        
+        self.unit_id = config.unit_id
+
         self.connected = False
 
         # Initialise Client
@@ -51,9 +52,9 @@ class AsyncModbusClient:
     # Read Coils
     # -------------------------
 
-    async def _read_coils(self, reg_address, count):
-        result = await self.client.read_coils(address=reg_address, count=count)
-        
+    async def _read_coils(self, reg_address, count, unit_id):
+        result = await self.client.read_coils(address=reg_address, count=count, slave=unit_id)
+
         if result is None or result.isError():
             raise RuntimeError(f"Modbus error: {result}")
         
@@ -63,9 +64,9 @@ class AsyncModbusClient:
     # Read discrete inputs
     # -------------------------
 
-    async def _read_discrete_inputs(self, reg_address, count):
-        result = await self.client.read_discrete_inputs(address=reg_address, count=count)
-        
+    async def _read_discrete_inputs(self, reg_address, count, unit_id):
+        result = await self.client.read_discrete_inputs(address=reg_address, count=count, slave=unit_id)
+
         if result is None or result.isError():
             raise RuntimeError(f"Modbus error: {result}")
 
@@ -75,9 +76,9 @@ class AsyncModbusClient:
     # Read holding registers
     # -------------------------
 
-    async def _read_holding_registers(self, reg_address, count):
-        result = await self.client.read_holding_registers(address=reg_address, count=count)
-        
+    async def _read_holding_registers(self, reg_address, count, unit_id):
+        result = await self.client.read_holding_registers(address=reg_address, count=count, slave=unit_id)
+
         if result is None or result.isError():
             raise RuntimeError(f"Modbus error: {result}")
         
@@ -87,9 +88,9 @@ class AsyncModbusClient:
     # Read input registers
     # -------------------------
 
-    async def _read_input_registers(self, reg_address, count):
-        result = await self.client.read_input_registers(address=reg_address, count=count)
-        
+    async def _read_input_registers(self, reg_address, count, unit_id):
+        result = await self.client.read_input_registers(address=reg_address, count=count, slave=unit_id)
+
         if result is None or result.isError():
             raise RuntimeError(f"Modbus error: {result}")
         
@@ -114,19 +115,20 @@ class AsyncModbusClient:
         reg_type = request.type
         reg_address = request.reg_address
         count = request.count
-        
+        unit_id = self.unit_id
+
         if reg_type == "coil":
             # Read Output Coils.
-            data = await self._read_coils(reg_address=reg_address, count=count)
+            data = await self._read_coils(reg_address=reg_address, count=count, unit_id=unit_id)
         elif reg_type == "discrete":
             # Read Input Coils
-            data = await self._read_discrete_inputs(reg_address=reg_address, count=count)
+            data = await self._read_discrete_inputs(reg_address=reg_address, count=count, unit_id=unit_id)
         elif reg_type == "holding":
             # Read Holding Registers
-            data = await self._read_holding_registers(reg_address=reg_address, count=count)
+            data = await self._read_holding_registers(reg_address=reg_address, count=count, unit_id=unit_id)
         elif reg_type == "input":
             # Read Input Registers
-            data = await self._read_input_registers(reg_address=reg_address, count=count)
+            data = await self._read_input_registers(reg_address=reg_address, count=count, unit_id=unit_id)
         else:
             # Raise an error
             raise ValueError(f"Invalid register type: {reg_type}")
