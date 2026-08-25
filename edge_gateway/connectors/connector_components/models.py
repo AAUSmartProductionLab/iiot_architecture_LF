@@ -14,6 +14,12 @@ from pydantic import BaseModel
 # Modbus TCP Data Models
 # ---------------------------
 
+class HTTPClientConfig(BaseModel):
+    hot: str = "127.0.0.1"
+    port: int = 80
+    uri: str = ""
+    timeout: int = 4
+
 
 class ModbusTCPClientConfig(BaseModel):
     host: str = "127.0.0.1"
