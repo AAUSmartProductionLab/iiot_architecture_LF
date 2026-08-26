@@ -15,10 +15,11 @@ from pydantic import BaseModel
 # ---------------------------
 
 class HTTPClientConfig(BaseModel):
-    hot: str = "127.0.0.1"
-    port: int = 80
-    uri: str = ""
+    host: str = "127.0.0.1"
+    port: int | None = None
+    path: str = ""
     timeout: int = 4
+    protocol: Literal["HTTP", "HTTPS"] = "HTTP"
 
 
 class ModbusTCPClientConfig(BaseModel):

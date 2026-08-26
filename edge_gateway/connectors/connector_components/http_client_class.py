@@ -1,5 +1,5 @@
 """
-This module defines an HTTP client for accessing data via 
+This module defines an HTTP/HTTPS client for accessing data via 
 REST APIs. 
 """
 
@@ -16,12 +16,33 @@ class HTTPClient:
 
     def __init__(self, config: HTTPClientConfig):
         self.host = config.host
-        self.port = config.port
-        self.url = f"http://{config.host}:{config.port}{config.uri}"
+        self.path = config.path if config.path.startswith("/") else f"/{config.path}"
+        self.protocol = config.protocol.lower()
+        if config.port is None:
+            if self.protocol == "https":
+                self.port = 443
+            else:
+                self.port = 80
+        else:
+            self.port = config.port
+        self.url = (f"{self.protocol}://"
+                    f"{self.host}:{self.port if self.port is not None else ''}"
+                    f"{self.path}")
         self.poll_rate = config.poll_rate
         self.timeout = config.timeout
 
         self.session = requests.Session()
+
+    #------------------------------
+    # Connection / Disconneciton
+    #------------------------------
+
+    def close(self):
+        self.session.close()
+
+    # -------------------------
+    # Read
+    # -------------------------
 
     def read(self):
         try:
@@ -34,6 +55,3 @@ class HTTPClient:
         except requests.RequestException as e:
             logger.error(f"HTTP request failed: {e}")
             raise
-
-    def close(self):
-        self.session.close()
