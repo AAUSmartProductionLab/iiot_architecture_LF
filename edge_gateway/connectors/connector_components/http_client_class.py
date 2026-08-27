@@ -26,10 +26,11 @@ class HTTPClient:
         else:
             self.port = config.port
         self.url = (f"{self.protocol}://"
-                    f"{self.host}:{self.port if self.port is not None else ''}"
+                    f"{self.host}:{self.port}"
                     f"{self.path}")
         self.poll_rate = config.poll_rate
         self.timeout = config.timeout
+        self.verify = config.cert_path if config.cert_path else config.verify_ssl
 
         self.session = requests.Session()
 
@@ -48,8 +49,9 @@ class HTTPClient:
         try:
             res = self.session.get(
                 self.url,
-                timeout=self.timeout
-                )
+                timeout = self.timeout,
+                verify = self.verify
+            )
             res.raise_for_status()
             return res.json()
         except requests.RequestException as e:

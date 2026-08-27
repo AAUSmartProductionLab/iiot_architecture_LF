@@ -20,6 +20,8 @@ class HTTPClientConfig(BaseModel):
     path: str = ""
     timeout: int = 4
     protocol: Literal["HTTP", "HTTPS"] = "HTTP"
+    cert_path: str | None = None
+    verify_ssl: bool = True
 
 
 class ModbusTCPClientConfig(BaseModel):
