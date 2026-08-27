@@ -13,25 +13,26 @@ class HTTPClient:
     """
     An HTTP Client.
     """
-
+    #------------------------------
+    # Instantiation
+    #------------------------------
     def __init__(self, config: HTTPClientConfig):
+        # Attributes
         self.host = config.host
         self.path = config.path if config.path.startswith("/") else f"/{config.path}"
         self.protocol = config.protocol.lower()
-        if config.port is None:
-            if self.protocol == "https":
-                self.port = 443
-            else:
-                self.port = 80
-        else:
-            self.port = config.port
-        self.url = (f"{self.protocol}://"
-                    f"{self.host}:{self.port}"
-                    f"{self.path}")
-        self.poll_rate = config.poll_rate
         self.timeout = config.timeout
         self.verify = config.cert_path if config.cert_path else config.verify_ssl
+        self.port = config.port
 
+        # URL Construction
+        self.url = (f"{self.protocol}://"
+                    f"{self.host}"
+                    f"{f':{self.port}' if self.port is not None else ''}"
+                    f"{self.path}")
+        self.poll_rate = config.poll_rate
+
+        # Session instantiation
         self.session = requests.Session()
 
     #------------------------------
