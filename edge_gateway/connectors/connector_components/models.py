@@ -6,12 +6,53 @@ bad parameters fail fast with a clear ValidationError instead of surfacing as an
 obscure protocol error deeper in.
 """
 
+import pyads.constants
+from enum import Enum
 from typing import Any, Literal
-
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ---------------------------
-# Modbus TCP Data Models
+# ADS Data Models
+# ---------------------------
+
+class ADSClientConfig(BaseModel):
+    # Local Parameters
+    local_ip: str = "127.0.0.1"
+    local_netid: str = "127.0.0.1.1.1"
+
+    # Target Parameters
+    target_ip: str = "192.168.1.10"
+    target_netid: str = "192.168.1.10.1.1"
+    target_port: int = 851
+    target_routename: str | None = None
+    username: str | None = None
+    password: str | None = None
+
+class ADSReadRequest(BaseModel):
+    ads_readtype: Literal["by index", "by name", "list by name"]
+    index_group: int = 1
+    index_offset: int = 0
+    datatype: Literal[
+        "BOOL",
+        "DINT",
+        "INT",
+        "LREAL",
+        "REAL",
+        "SHORT",
+        "SINT",
+        "UDINT",
+        "UINT",
+        "USHORT",
+        "USINT",
+        "STRING",
+        "WSTRING"
+    ]
+    dataname: str | None = None
+    datanames: list[str] = Field(default_factory=list)
+    array_size: int = 1
+
+# ---------------------------
+# HTTP/HTTPS Data Models
 # ---------------------------
 
 class HTTPClientConfig(BaseModel):
@@ -23,6 +64,9 @@ class HTTPClientConfig(BaseModel):
     cert_path: str | None = None
     verify_ssl: bool = True
 
+# ---------------------------
+# Modbus TCP Data Models
+# ---------------------------
 
 class ModbusTCPClientConfig(BaseModel):
     host: str = "127.0.0.1"
