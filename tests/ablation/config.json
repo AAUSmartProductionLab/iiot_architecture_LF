@@ -1,0 +1,17 @@
+{
+  "server_dir": "~/iiot_architecture_LF/edge_server",
+  "server_ip": "192.168.68.65",
+  "gateway_ip": "192.168.68.62",
+  "gateway_port": 8000,
+  "gateway_ssh": "codelab-gw",
+  "opcua_endpoint": "opc.tcp://192.168.68.62:4840",
+  "device_id": "festo_trial",
+  "uns_prefix": "uns/enterprise/site/area/line",
+  "pg_dsn": "postgresql://postgres:admin@localhost:5432/postgres",
+  "basyx_url": "http://localhost:8081",
+  "orchestrator_port": 8000,
+  "dashboard_url": "http://localhost:5173",
+  "node_red_dir": "tests/node-red-baseline",
+  "node_red_port": 1880,
+  "timeout_minutes": 60
+}
