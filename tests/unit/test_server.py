@@ -150,6 +150,49 @@ def test_discovery_disabled_retains_liveness(monkeypatch):
     assert calls == ["monitor_start", "monitor_stop"]
 
 
+def test_discovery_retries_failed_aas_sync(monkeypatch):
+    import asyncio
+    from orchestrator import discovery
+    from orchestrator.registry import Registry
+
+    monkeypatch.setattr(discovery, "registry", Registry())
+    monkeypatch.setattr(discovery, "AAS_RETRY_DELAY", 0)
+    manifest = {"gateway_id": "gw1", "serial_number": "SN1", "configured_connectors": []}
+    info = SimpleNamespace(properties={b"gateway_id": b"gw1"}, port=8000, server="gw1.local.",
+                           parsed_addresses=lambda: ["10.0.0.9"])
+
+    class Zeroconf:
+        async def async_get_service_info(self, *a):
+            return info
+
+    class Client:
+        async def get(self, url):
+            return SimpleNamespace(raise_for_status=lambda: None, json=lambda: manifest)
+
+    syncs = []
+
+    async def on_manifest(m, network):
+        syncs.append(network["ip"])
+        if len(syncs) == 1:
+            raise ConnectionError("BaSyx not ready")
+
+    async def check():
+        disc = discovery.Discovery(asyncio.get_running_loop(), on_manifest=on_manifest)
+        disc.azc = Zeroconf()
+        name = "gw1._aasgw._tcp.local."
+        await disc._handle_up(Client(), name)  # first sync fails
+        assert discovery.registry.get("gw1")["aas_synced"] is False
+        retry = await asyncio.wait_for(disc.queue.get(), 1)
+        assert retry == (name, discovery.ServiceStateChange.Updated)
+        await disc._handle_up(Client(), name)  # retry succeeds
+        await disc._handle_up(Client(), name)  # unchanged manifest: no further sync
+        assert syncs == ["10.0.0.9", "10.0.0.9"]
+        assert discovery.registry.get("gw1")["aas_synced"] is True
+        assert disc._retries == {}
+
+    asyncio.run(check())
+
+
 def test_festo_metadata_preserves_empty_units():
     from festo_module import connector
     cfg = connector("opc.tcp://simulator:14840")

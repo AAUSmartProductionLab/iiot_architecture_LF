@@ -17,6 +17,26 @@ if (-not (Test-Path $venvPy)) { throw 'No .venv found. Run redeploy.ps1 first.' 
 # Free port 8000 if the Docker orchestrator was started (e.g. by 'docker compose up -d').
 docker stop orchestrator 2>$null | Out-Null
 
+# BaSyx needs 10-20 s after 'docker compose up'; gateways discovered before that
+# would fail to register their AAS.
+$basyx = if ($env:BASYX_URL) { $env:BASYX_URL } else { 'http://localhost:8081' }
+Write-Host "Waiting for BaSyx at $basyx " -NoNewline
+$deadline = (Get-Date).AddSeconds(120)
+while ($true) {
+    try {
+        Invoke-WebRequest -UseBasicParsing -TimeoutSec 3 "$basyx/shells" | Out-Null
+        break
+    } catch {
+        if ((Get-Date) -gt $deadline) {
+            Write-Host ''
+            throw "BaSyx did not answer at $basyx within 120 s. Check the containers with 'docker compose ps'."
+        }
+        Write-Host '.' -NoNewline
+        Start-Sleep -Seconds 2
+    }
+}
+Write-Host ' ready'
+
 $serverIp = & $venvPy -c 'from orchestrator import config; print(config.resolve_server_ip())'
 Write-Host ''
 Write-Host 'Dashboard:        http://localhost:5173'

@@ -21,6 +21,9 @@ log = logging.getLogger("discovery")
 
 SERVICE_TYPE = "_aasgw._tcp.local."
 
+# Delay before retrying a failed AAS sync (e.g. BaSyx still starting up).
+AAS_RETRY_DELAY = 5.0
+
 # async (manifest: dict, network: dict) -> None
 OnManifest = Callable[[dict, dict], Awaitable[None]]
 
@@ -51,6 +54,7 @@ class Discovery:
         self.browser: AsyncServiceBrowser | None = None
         self._task: asyncio.Task | None = None
         self._name_to_gw: dict[str, str] = {}  # mDNS service name -> gateway_id
+        self._retries: dict[str, asyncio.TimerHandle] = {}  # service name -> pending AAS-sync retry
 
     async def start(self) -> None:
         self.azc = AsyncZeroconf()
@@ -61,6 +65,9 @@ class Discovery:
         log.info("browsing for %s", SERVICE_TYPE)
 
     async def stop(self) -> None:
+        for handle in self._retries.values():
+            handle.cancel()
+        self._retries.clear()
         if self.browser:
             await self.browser.async_cancel()
         if self.azc:
@@ -110,9 +117,12 @@ class Discovery:
                 log.exception("manifest fetch failed: %s", url)
 
         # Detect whether the manifest actually changed since last seen, so we
-        # skip redundant AAS re-syncs on periodic mDNS re-announcements.
-        prev = registry.get(gateway_id)
-        changed = manifest is not None and (prev or {}).get("manifest") != manifest
+        # skip redundant AAS re-syncs on periodic mDNS re-announcements. A failed
+        # sync counts as unchanged-but-unsynced, so it is retried.
+        prev = registry.get(gateway_id) or {}
+        changed = manifest is not None and (
+            prev.get("manifest") != manifest or not prev.get("aas_synced", False)
+        )
 
         self._name_to_gw[name] = gateway_id
         registry.upsert(
@@ -129,7 +139,32 @@ class Discovery:
 
         if changed and self.on_manifest is not None:
             network = {"ip": ip, "port": port, "hostname": hostname, "gateway_id": gateway_id}
-            await self.on_manifest(manifest, network)
+            record = registry.get(gateway_id)
+            try:
+                await self.on_manifest(manifest, network)
+            except Exception as exc:
+                record["aas_synced"] = False
+                log.warning(
+                    "AAS sync for %s failed (%s: %s); retrying in %.0f s",
+                    gateway_id, type(exc).__name__, exc, AAS_RETRY_DELAY,
+                )
+                self._schedule_retry(name)
+                return
+            record["aas_synced"] = True
+            pending = self._retries.pop(name, None)
+            if pending:
+                pending.cancel()
+
+    def _schedule_retry(self, name: str) -> None:
+        """Re-queue the service once after AAS_RETRY_DELAY (at most one pending per name)."""
+        if name in self._retries:
+            return
+
+        def fire() -> None:
+            self._retries.pop(name, None)
+            self.queue.put_nowait((name, ServiceStateChange.Updated))
+
+        self._retries[name] = self.loop.call_later(AAS_RETRY_DELAY, fire)
 
     def _handle_down(self, name: str) -> None:
         gateway_id = self._name_to_gw.get(name)
