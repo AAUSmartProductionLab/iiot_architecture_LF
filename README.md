@@ -18,7 +18,8 @@ Gateway manifest -> orchestrator -> BaSyx AAS
 ## Start
 
 Use separate gateway and server machines with Docker and Compose v2. For automatic
-discovery, use Linux hosts on the same LAN with mDNS available.
+discovery, use hosts on the same LAN with mDNS available: a Linux gateway, and a
+Linux server or a Windows server installed as described below.
 
 From a checkout on the **server**, set its reachable addresses:
 
@@ -49,9 +50,28 @@ Browsing currently uses anonymous OPC UA without transport security. The managem
 and history APIs have no built-in authentication; use a trusted test network or
 provide access control at deployment.
 
-For Docker Desktop, use bridge networking and manual gateway registration. In a
-Bash shell, run `USE_HOST_NET=0 ./redeploy.sh`. From PowerShell, run the equivalent
-Compose commands in each role's directory:
+### Windows server
+
+From PowerShell, with Docker Desktop, Git and Python 3.11 or later:
+
+```powershell
+irm https://raw.githubusercontent.com/AAUSmartProductionLab/iiot_architecture_LF/main/edge_server/install.ps1 | iex
+```
+
+Everything runs in Docker except the orchestrator, which runs as a Python process
+in that window. Inside Docker Desktop it can neither receive mDNS nor detect the
+PC's LAN address; natively, gateways are discovered without setting `SERVER_IP`.
+Allow Python through Windows Firewall if prompted and keep the window open. In
+`edge_server`, restart the orchestrator with
+`powershell -ExecutionPolicy Bypass -File run-orchestrator.ps1`, or rebuild everything
+with `redeploy.ps1`. If a VPN changes the detected address, set `$env:SERVER_IP`
+first. To stop, press Ctrl+C in that window and run `docker compose down`.
+
+### Docker Desktop only
+
+Without the native orchestrator, use bridge networking and manual gateway
+registration. In a Bash shell, run `USE_HOST_NET=0 ./redeploy.sh`. From PowerShell,
+run the equivalent Compose commands in each role's directory:
 
 ```powershell
 # Server
