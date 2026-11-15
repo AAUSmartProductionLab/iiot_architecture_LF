@@ -1,6 +1,6 @@
 """Standalone Festo CECC-LK interface simulator matching festo_opcua.py.
 
-python tests/simulators/festo_module.py --host 0.0.0.0 --port 14840
+python tests/simulators/festo_module.py --host 0.0.0.0 --port 4840
 Use --manual to preserve client control writes instead of cycling test values.
 No connection to real equipment is made. NodeIds match the supplied client;
 the namespace URI and process dynamics are synthetic, not a PLC digital twin.
@@ -86,7 +86,7 @@ async def run(endpoint, manual, period):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=14840)
+    parser.add_argument("--port", type=int, default=4840)
     parser.add_argument("--period", type=float, default=3.0)
     parser.add_argument("--manual", action="store_true")
     parser.add_argument("--export", type=Path, help="Write connector JSON then exit; host must be reachable from gateway")

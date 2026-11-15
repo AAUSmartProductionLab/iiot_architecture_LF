@@ -13,14 +13,14 @@ python -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 # Windows PowerShell: .venv\Scripts\Activate.ps1
 python -m pip install -r tests/simulators/requirements.txt
-python tests/simulators/festo_module.py --host 0.0.0.0 --port 14840
+python tests/simulators/festo_module.py --host 0.0.0.0 --port 4840
 ```
 
 Wait for READY. Default automatic mode changes test signals every 3 seconds.
 Use `--manual` to preserve control writes; it models carrier availability as the
 inverse of stopper release, but does not emulate a full PLC or RFID hardware.
 Stop with Ctrl+C. Use a lab network: this endpoint uses anonymous access and no
-OPC UA transport security. Allow gateway access to TCP port 14840.
+OPC UA transport security. Allow gateway access to TCP port 4840.
 
 ## Connect through the wizard
 
@@ -29,7 +29,7 @@ for the default Compose stacks; their ports and container names overlap. Configu
 the gateway MQTT bridge, then Add connector:
 
 1. Select OPC UA and use device ID `festo_trial`.
-2. Set endpoint to `opc.tcp://SIMULATOR_LAN_IP:14840`, polling interval 1000 ms.
+2. Set endpoint to `opc.tcp://SIMULATOR_LAN_IP:4840`, polling interval 1000 ms.
    Use an address reachable from the gateway, not localhost or 0.0.0.0.
 3. On Datapoints, click **Browse tags**, then **Open** beside FestoTrialModule.
 4. Add conveyor_right, carrier_available, carrier_id, product_id and job_finished.
@@ -53,8 +53,8 @@ For host Python installations, reinstall `edge_gateway/requirements.txt`.
 Export a five-point configuration without starting a server:
 
 ```bash
-python tests/simulators/festo_module.py --host SIMULATOR_LAN_IP --port 14840 --export /tmp/festo-connector.json
-python tests/node-red-baseline/generate_festo.py --endpoint opc.tcp://SIMULATOR_LAN_IP:14840 --output /tmp/festo-flows.json
+python tests/simulators/festo_module.py --host SIMULATOR_LAN_IP --port 4840 --export /tmp/festo-connector.json
+python tests/node-red-baseline/generate_festo.py --endpoint opc.tcp://SIMULATOR_LAN_IP:4840 --output /tmp/festo-flows.json
 ```
 
 Use any writable output path on Windows. The connector export needs a `gateway_id`
