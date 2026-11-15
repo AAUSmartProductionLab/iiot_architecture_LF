@@ -225,14 +225,11 @@ __marimo__/
 # Node / Vite (web dashboard)
 node_modules/
 web/dist/
+.vite/
 *.tsbuildinfo
 
-# HiveMQ runtime artifacts (must not be committed; DISABLED would disable the extension)
-**/hivemq-bridge-extension/DISABLED
-**/hivemq-bridge-extension/bridge.id
-# Runtime bridge config: seeded from config.xml.template by the deploy scripts and
-# rewritten at runtime (its <host> drifts), so keep it out of git.
-**/hivemq-bridge-extension/conf/config.xml
+# Gateway bridge config: written at runtime by the gateway agent (server IP drifts)
+edge_gateway/broker/config/conf.d/bridge.conf
 
 # Remove old LLM coding plans
 plan.md
@@ -243,3 +240,16 @@ settings.json
 DISABLED
 
 PLC_S7_Tags.md
+
+# Private manuscript, reviewer comments, and imported handoff archive.
+/paper.tex
+/paper_comments/
+/iiot-sii2027-handoff/
+/iiot_sii2027-handoff/
+# Local study recordings and participant-level data (publish anonymized summaries explicitly).
+/tests/evaluation/private/
+# Internal documentation capture and trial recording tools.
+/tests/screenshots/
+/tests/evaluation/trials.csv
+# Legacy HiveMQ runtime files left behind when switching to Mosquitto.
+/edge_gateway/broker/extensions/

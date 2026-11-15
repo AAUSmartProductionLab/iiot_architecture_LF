@@ -6,8 +6,10 @@ Owns this gateway's configured connectors + bridge config. The server pulls
 Connectors are persisted to disk (one descriptor.json per device, under the
 ADAPTER_CONFIG_DIR named volume that also holds each adapter's config.json), so
 they survive an agent/container restart. `load_persisted_connectors()` rehydrates
-them on startup. The bridge config is still in-memory (the HiveMQ bridge itself
-persists in the broker's own config).
+them on startup. The bridge state (server IP + UNS prefix) is persisted to
+BRIDGE_STATE_FILE: the server derives every datapoint's UNS topic from the
+manifest's uns_prefix, so forgetting a custom prefix on restart would point the
+AAS (and thus ingestion) at topics nobody publishes to.
 """
 
 import json
@@ -89,6 +91,20 @@ def load_persisted_connectors() -> int:
     return count
 
 
+def load_bridge_state() -> bool:
+    """Restore the persisted bridge state on startup. Returns True if found."""
+    try:
+        with open(config.BRIDGE_STATE_FILE, encoding="utf-8") as f:
+            stored = json.load(f)
+    except FileNotFoundError:
+        return False
+    except Exception:
+        log.warning("unreadable bridge state %s", config.BRIDGE_STATE_FILE, exc_info=True)
+        return False
+    _bridge.update({k: stored[k] for k in ("configured", "server_ip", "uns_prefix") if k in stored})
+    return True
+
+
 def get_bridge_state() -> dict:
     return dict(_bridge)
 
@@ -98,6 +114,11 @@ def set_bridge_state(server_ip: str, uns_prefix: str | None = None) -> dict:
     _bridge["configured"] = bool(server_ip)
     if uns_prefix:
         _bridge["uns_prefix"] = uns_prefix.strip().strip("/")
+    try:
+        with open(config.BRIDGE_STATE_FILE, "w", encoding="utf-8") as f:
+            json.dump(_bridge, f, indent=2)
+    except Exception:
+        log.warning("could not persist bridge state to %s", config.BRIDGE_STATE_FILE, exc_info=True)
     return dict(_bridge)
 
 

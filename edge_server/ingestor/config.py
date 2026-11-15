@@ -2,7 +2,10 @@
 
 import os
 
-BROKER_HOST = os.getenv("BROKER_HOST", "hivemq")
+# Study/manual operation: disables both event updates and periodic AAS backfill.
+AUTO_MAPPING_ENABLED = os.getenv("AUTO_MAPPING_ENABLED", "true").lower() == "true"
+
+BROKER_HOST = os.getenv("BROKER_HOST", "mqtt-broker")
 BROKER_PORT = int(os.getenv("BROKER_PORT", "1883"))
 
 BASYX_URL = os.getenv("BASYX_URL", "http://aas-environment:8081")

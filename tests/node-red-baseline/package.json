@@ -1,0 +1,15 @@
+{
+  "name": "iiot-node-red-baseline",
+  "private": true,
+  "description": "Node-RED baseline for the IIoT architecture evaluation (see README.md). This folder is used as the Node-RED userDir.",
+  "scripts": {
+    "start": "node-red --userDir . --port 1880"
+  },
+  "dependencies": {
+    "node-red": "5.0.9",
+    "node-red-contrib-opcua": "0.2.355",
+    "node-red-contrib-modbus": "5.25.0",
+    "node-red-contrib-s7": "3.1.3",
+    "node-red-contrib-postgresql": "0.16.2"
+  }
+}

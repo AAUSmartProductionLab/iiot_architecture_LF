@@ -42,6 +42,8 @@ def _write_config(descriptor: dict) -> str:
         "protocol": descriptor.get("protocol"),
         "connection": descriptor.get("connection", {}),
         "datapoints": descriptor.get("datapoints", []),
+        # Connectors persisted before the interval was configurable have none.
+        "interval": descriptor.get("interval") or 2.0,
         "mqtt": {
             "broker_host": config.ADAPTER_BROKER_HOST,
             "broker_port": config.ADAPTER_BROKER_PORT,
@@ -88,6 +90,28 @@ def start_adapter(descriptor: dict) -> bool:
         return False
 
 
+def ensure_running(descriptors: list[dict]) -> int:
+    """Start the adapter of every connector whose container is missing or not
+    running. Returns how many were (re)started."""
+    if not config.ADAPTER_AUTOSTART:
+        return 0
+    started = 0
+    try:
+        client = docker.from_env()
+    except Exception:
+        log.exception("cannot reach Docker to relaunch adapters")
+        return 0
+    for d in descriptors:
+        try:
+            if client.containers.get(_container_name(d["device_key"])).status == "running":
+                continue
+        except Exception:
+            pass  # absent -> start it
+        if start_adapter(d):
+            started += 1
+    return started
+
+
 def _parse_failed(line: str) -> tuple[str | None, str | None]:
     """Pull `reason=… detail=…` out of a CONNECT_FAILED log line."""
     if "reason=" not in line:
@@ -124,6 +148,11 @@ def connector_status(device_key: str) -> dict:
         if "CONNECT_FAILED" in line:
             state = "error"
             reason, detail = _parse_failed(line)
+            break
+        if "STREAM_ERROR" in line:
+            # Connected earlier, then lost the device; the adapter is reconnecting.
+            state, reason = "error", "connection lost"
+            detail = line.split("detail=", 1)[1].strip() if "detail=" in line else None
             break
         if "CONNECTED" in line:
             state = "connected"

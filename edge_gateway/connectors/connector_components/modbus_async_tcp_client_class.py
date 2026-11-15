@@ -1,32 +1,49 @@
 """
-A Class to implement a synchronous MODBUS TCP client connector.
+An asynchronous Modbus TCP client connector (pymodbus 3.x).
 """
 
-from pymodbus.client import AsyncModbusTcpClient
-from .models import ModbusTCPClientConfig, ModbusReadRequest
+import asyncio
+import inspect
 import logging
-import asyncio 
+
+from pymodbus.client import AsyncModbusTcpClient
+
+from .decoding import modbus_decode, modbus_register_count
+from .models import ModbusReadRequest, ModbusTCPClientConfig
 
 logger = logging.getLogger(__name__)
 
+
+def _unit_kwarg() -> str:
+    """Name of the unit-id keyword in this pymodbus version.
+
+    pymodbus renamed `slave=` to `device_id=` in 3.10 (and dropped `slave` later),
+    so resolve it once from the installed library instead of hard-coding either.
+    """
+    params = inspect.signature(AsyncModbusTcpClient.read_holding_registers).parameters
+    return "device_id" if "device_id" in params else "slave"
+
+
+_UNIT = _unit_kwarg()
+
+
 class AsyncModbusClient:
-    """A Modbus Client."""
+    """A Modbus TCP client. Datapoints carry their address under dp['address']:
+    {register (0-based), register_type, word_order}; dp['datatype'] fixes how many
+    registers are read and how they are decoded."""
+
     def __init__(self, config: ModbusTCPClientConfig):
-        # Attributes
         self.host = config.host
         self.port = config.port
         self.timeout = config.timeout
         self.unit_id = config.unit_id
-
         self.connected = False
 
-        # NOTE: The pymodbus client is *not* created here. pymodbus 3.x grabs the
-        # running event loop at construction time (asyncio.get_running_loop()
-        # inside transport.py), so building it in __init__ blows up with
-        # "RuntimeError: no running event loop" whenever this class is
-        # instantiated before asyncio.run() has started the loop (e.g. inside a
-        # synchronous Connector.__init__). Instead we create it lazily in
-        # connect(), which only ever runs inside a live event loop.
+        # NOTE: the pymodbus client is *not* created here. pymodbus 3.x grabs the
+        # running event loop at construction time, so building it in __init__
+        # fails with "no running event loop" when this class is instantiated
+        # before asyncio.run() starts (e.g. inside the synchronous
+        # Connector.__init__). It is created lazily in connect() instead.
         self.client = None
 
     # -------------------------
@@ -36,169 +53,91 @@ class AsyncModbusClient:
     async def connect(self):
         if self.client is None:
             self.client = AsyncModbusTcpClient(host=self.host, port=self.port, timeout=self.timeout)
-
         if await self.client.connect():
             self.connected = True
             logger.info(f"Connected to Modbus Server at {self.host}:{self.port}")
         else:
             self.connected = False
-            logger.error("Failed to connect.")
+            # Raise so the Connector reports CONNECT_FAILED and retries, instead of
+            # logging CONNECTED for a device it never reached.
+            raise ConnectionError(f"could not connect to Modbus server {self.host}:{self.port}")
 
     async def disconnect(self):
         if self.client is None:
-            logger.warning("Attempted to disconnect, but client is None.")
             self.connected = False
             return
         try:
             self.client.close()
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"Error while closing Modbus client: {e}")
         finally:
             self.connected = False
             logger.info("Disconnected from modbus server.")
 
     # -------------------------
-    # Read Coils
+    # Read
     # -------------------------
 
-    async def _read_coils(self, reg_address, count, unit_id):
-        result = await self.client.read_coils(address=reg_address, count=count, slave=unit_id)
-
-        if result is None or result.isError():
-            raise RuntimeError(f"Modbus error: {result}")
-        
-        return result.bits
-
-    # -------------------------
-    # Read discrete inputs
-    # -------------------------
-
-    async def _read_discrete_inputs(self, reg_address, count, unit_id):
-        result = await self.client.read_discrete_inputs(address=reg_address, count=count, slave=unit_id)
-
-        if result is None or result.isError():
-            raise RuntimeError(f"Modbus error: {result}")
-
-        return result.bits
-
-    # -------------------------
-    # Read holding registers
-    # -------------------------
-
-    async def _read_holding_registers(self, reg_address, count, unit_id):
-        result = await self.client.read_holding_registers(address=reg_address, count=count, slave=unit_id)
-
-        if result is None or result.isError():
-            raise RuntimeError(f"Modbus error: {result}")
-        
-        return result.registers
-    
-    # -------------------------
-    # Read input registers
-    # -------------------------
-
-    async def _read_input_registers(self, reg_address, count, unit_id):
-        result = await self.client.read_input_registers(address=reg_address, count=count, slave=unit_id)
-
-        if result is None or result.isError():
-            raise RuntimeError(f"Modbus error: {result}")
-        
-        return result.registers
-    
-    # -------------------------
-    # Unified read method
-    # -------------------------
-
-    async def _read(self, request: ModbusReadRequest):
-        """
-        Carry out a read function based on a ModbusReadRequest instance.
-        
-        Returns a dictionary: data = {  "register1" : value1,
-                                        "register2" : value2, ...} 
-        """
-        # Check connection
+    async def _read(self, request: ModbusReadRequest) -> list:
+        """Raw read: a list of 16-bit registers, or of bits for coil/discrete."""
         if not self.connected:
             raise RuntimeError("Not connected to Modbus server")
-
-        # Read values from request arguments to local variables
-        reg_type = request.type
-        reg_address = request.reg_address
-        count = request.count
-        unit_id = self.unit_id
-
-        if reg_type == "coil":
-            # Read Output Coils.
-            data = await self._read_coils(reg_address=reg_address, count=count, unit_id=unit_id)
-        elif reg_type == "discrete":
-            # Read Input Coils
-            data = await self._read_discrete_inputs(reg_address=reg_address, count=count, unit_id=unit_id)
-        elif reg_type == "holding":
-            # Read Holding Registers
-            data = await self._read_holding_registers(reg_address=reg_address, count=count, unit_id=unit_id)
-        elif reg_type == "input":
-            # Read Input Registers
-            data = await self._read_input_registers(reg_address=reg_address, count=count, unit_id=unit_id)
-        else:
-            # Raise an error
-            raise ValueError(f"Invalid register type: {reg_type}")
-        
-        return {
-            str(reg_address + i): value
-            for i, value in enumerate(data)
+        readers = {
+            "coil": (self.client.read_coils, "bits"),
+            "discrete": (self.client.read_discrete_inputs, "bits"),
+            "holding": (self.client.read_holding_registers, "registers"),
+            "input": (self.client.read_input_registers, "registers"),
         }
+        if request.type not in readers:
+            raise ValueError(f"Invalid register type: {request.type}")
+        fn, attr = readers[request.type]
+        result = await fn(address=request.reg_address, count=request.count, **{_UNIT: self.unit_id})
+        if result is None or result.isError():
+            raise RuntimeError(f"Modbus error: {result}")
+        return list(getattr(result, attr))[: request.count]
 
-    # -------------------------
-    # Safe read wrapper method
-    # -------------------------
-   
-    async def safe_read(self, request: ModbusReadRequest):
+    async def safe_read(self, request: ModbusReadRequest) -> list:
+        """_read with reconnect-and-retry on failure."""
         for i in range(request.retries):
             try:
                 return await self._read(request)
-            except Exception as e:
-                logger.warning(f"Read attempt {i+1} failed: {e}")
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Read attempt {i + 1} failed: {e}")
                 if i == request.retries - 1:
                     raise
                 await self.disconnect()
                 await asyncio.sleep(0.2)
-                await self.connect()
+                try:
+                    await self.connect()
+                except ConnectionError:
+                    pass  # the next attempt raises "Not connected"
+
+    async def read_datapoint(self, dp: dict):
+        """Read and decode one datapoint."""
+        addr = dp.get("address", {}) or {}
+        datatype = dp.get("datatype", "float32")
+        request = ModbusReadRequest(
+            type=addr.get("register_type", "holding"),
+            reg_address=int(addr.get("register", 0)),
+            count=modbus_register_count(datatype),
+        )
+        raw = await self.safe_read(request)
+        return modbus_decode(raw, datatype, addr.get("word_order", "big"))
 
     # -------------------------
     # Subscribe (poll loop)
     # -------------------------
 
     async def subscribe(self, datapoints, on_value, interval=2.0):
-        """Poll each datapoint every `interval`s and hand its value to on_value.
-
-        An initial read fires immediately on subscription. dp's register address
-        and type are read from dp['address']['register'] and
-        dp['address']['register_type']."""
-        # ── initial read ──────────────────────────────────────────────
-        for dp in datapoints:
-            try:
-                result = await self._read_from_dp(dp)
-                value = next(iter(result.values())) if result else None
-                on_value(dp, value)
-            except Exception as e:
-                logger.error(f"Modbus initial read failed for {dp.get('name')}: {e}")
-
-        # ── polling loop ──────────────────────────────────────────────
+        """Read every datapoint once per `interval` seconds and hand each decoded
+        value to on_value(dp, value). A connection that can't be re-established
+        is raised so the Connector reconnects with backoff."""
         while True:
             for dp in datapoints:
                 try:
-                    result = await self._read_from_dp(dp)
-                    value = next(iter(result.values())) if result else None
-                    on_value(dp, value)
-                except Exception as e:
+                    on_value(dp, await self.read_datapoint(dp))
+                except Exception as e:  # noqa: BLE001
+                    if not self.connected:
+                        raise ConnectionError(f"Modbus connection lost: {e}") from e
                     logger.error(f"Modbus read failed for {dp.get('name')}: {e}")
             await asyncio.sleep(interval)
-
-    async def _read_from_dp(self, dp: dict):
-        """Build a ModbusReadRequest from a datapoint dict and read via safe_read."""
-        addr = dp.get("address", {}) or {}
-        request = ModbusReadRequest(
-            type=addr.get("register_type", "holding"),
-            reg_address=int(addr.get("register", 1)),
-            count=int(addr.get("quantity", 1)),
-        )
-        return await self.safe_read(request)

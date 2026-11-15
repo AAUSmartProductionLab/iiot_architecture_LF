@@ -13,42 +13,18 @@ services:
     networks:
       - db_network
 
-  # grafana:
-  #   image: grafana/grafana:latest
-  #   container_name: grafana
-  #   user: "472"
-  #   volumes:
-  #     - ./Grafana/grafana-data:/var/lib/grafana
-  #   environment:
-  #     - GF_SECURITY_ADMIN_PASSWORD=admin
-  #     - GF_USERS_ALLOW_SIGN_UP=false
-  #     - GF_PLUGINS_PREINSTALL=grafana-clock-panel,grafana-simple-json-datasource, volkovlabs-image-panel
-  #   ports:
-  #     - "3000:3000"
-  #   networks:
-  #     - db_network
-  #   depends_on:
-  #     - timescale
-  #   restart: unless-stopped
-
-  hivemq:
-    image: hivemq/hivemq4:latest
-    container_name: hivemq
-    hostname: hivemq
+  # Central MQTT broker (Eclipse Mosquitto): receives the gateways' bridged UNS
+  # data and the BaSyx submodel events.
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    hostname: mqtt-broker
     restart: unless-stopped
-    environment:
-      - JAVA_TOOL_OPTIONS=-Djava.rmi.server.hostname=127.0.0.1
-      - HIVEMQ_ALLOW_ALL_CLIENTS=true
-      # Optional: Uncomment if you have a license. Otherwise, it runs in 25-connection trial mode.
-      # - HIVEMQ_LICENSE=your_base64_encoded_license_here
     volumes:
-      - ./broker/conf:/opt/hivemq/conf
-      - ./broker/extensions:/opt/hivemq/extensions
-      - hivemq_data:/opt/hivemq/data
+      - ./broker/config:/mosquitto/config
     ports:
       - "1883:1883"
-      - "8083:8083"
-      - "8080:8080"
+      - "8083:8083"  # MQTT over WebSockets
     networks:
       - db_network
 
@@ -77,7 +53,7 @@ services:
       - SUBMODEL_REPO_PATH=http://localhost:8081/submodels
       - CD_REPO_PATH=http://localhost:8081/concept-descriptions
     ports:
-      - "8082:3000"  # avoids HiveMQ Control Center on host port 8080
+      - "8082:3000"
     depends_on:
       - aas-environment
     networks:
@@ -99,21 +75,23 @@ services:
       - "8000:8000"
     environment:
       - AGENT_PORT=8000
+      - DISCOVERY_ENABLED=${DISCOVERY_ENABLED:-true}
+      - SERVER_IP=${SERVER_IP:-}
+      - PUBLIC_API_BASE_URL=${PUBLIC_API_BASE_URL:-}
+      - PUBLIC_MQTT_URL=${PUBLIC_MQTT_URL:-}
       - BASYX_URL=http://aas-environment:8081
       - AAS_BASE_URL=https://smart-production.aau.dk
       - LIVENESS_INTERVAL=20
       - TS_DSN=postgresql://postgres:admin@timescale:5432/postgres
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - aas-environment
-      - hivemq
+      - mqtt-broker
+      - timescale
     networks:
       - db_network
 
   # React + Vite control board, dev mode with hot-module reload.
-  # Source is bind-mounted; the browser (on the host) calls the orchestrator at
-  # VITE_API_BASE directly. node_modules is an anonymous volume so the host mount
+  # Source is bind-mounted; the browser calls the orchestrator directly. node_modules is an anonymous volume so the host mount
   # doesn't shadow the container's installed deps.
   dashboard:
     build:
@@ -125,7 +103,8 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - VITE_API_BASE=http://localhost:8000
+      # The dashboard calls the orchestrator on the host it was loaded from
+      # (port 8000); set VITE_API_BASE only to point it somewhere else.
       - CHOKIDAR_USEPOLLING=true
     volumes:
       - ../web:/app
@@ -142,14 +121,15 @@ services:
     container_name: timescale-ingestor
     restart: unless-stopped
     environment:
-      - BROKER_HOST=hivemq
+      - BROKER_HOST=mqtt-broker
       - BROKER_PORT=1883
       - BASYX_URL=http://aas-environment:8081
       - TS_DSN=postgresql://postgres:admin@timescale:5432/postgres
       - DATA_TOPIC=uns/#
       - EVENT_TOPIC=sm-repository/#
+      - AUTO_MAPPING_ENABLED=${AUTO_MAPPING_ENABLED:-true}
     depends_on:
-      - hivemq
+      - mqtt-broker
       - timescale
       - aas-environment
     networks:
@@ -157,8 +137,6 @@ services:
 
 volumes:
   ts_data:
-  grafana_data:
-  hivemq_data:
 
 networks:
   db_network:

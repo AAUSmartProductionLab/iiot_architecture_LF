@@ -171,12 +171,18 @@ class AssetInterfacesBuilder:
 
     # --- device: generic source protocol + MQTT -----------------------------
 
-    def _source_interface(self, protocol: str, connection: dict, datapoints: list):
+    def _source_interface(
+        self, protocol: str, connection: dict, datapoints: list, interval: float | None = None
+    ):
         base = _protocol_base(protocol, connection)
         props = []
         for dp in datapoints:
             src = dp.get("address") or {}
             items = [("href", base)] + [(k, v) for k, v in src.items()]
+            if interval:
+                # Polling period in ms, cf. the pollingTime form field of the
+                # IDTA 02017 Modbus binding (modv:pollingTime).
+                items.append(("pollingTime", int(round(interval * 1000))))
             props.append(self._property_affordance(dp, self._forms(items)))
         return self._interface(
             f"Interface{_pascal(protocol)}",
@@ -189,14 +195,15 @@ class AssetInterfacesBuilder:
         )
 
     def _mqtt_interface(self, datapoints: list, mqtt: dict):
-        base = f"mqtt://{mqtt.get('broker_host', '')}:{mqtt.get('broker_port', '')}"
+        # UNS topics exist at the central broker, not at the local Docker broker.
+        base = mqtt.get("public_broker_url", "")
         props = []
         for dp in datapoints:
             forms = self._forms(
                 [
                     ("href", dp.get("uns_topic") or dp.get("local_topic") or ""),
                     ("contentType", "application/json"),
-                    ("mqtt_topic", dp.get("local_topic", "")),
+                    ("mqtt_topic", dp.get("uns_topic") or dp.get("local_topic") or ""),
                 ]
             )
             props.append(self._property_affordance(dp, forms))
@@ -211,10 +218,17 @@ class AssetInterfacesBuilder:
         )
 
     def build_device(
-        self, system_id: str, *, datapoints: list, mqtt: dict, protocol: str, connection: dict
+        self,
+        system_id: str,
+        *,
+        datapoints: list,
+        mqtt: dict,
+        protocol: str,
+        connection: dict,
+        interval: float | None = None,
     ) -> model.Submodel:
         interfaces = [
-            self._source_interface(protocol, connection, datapoints),
+            self._source_interface(protocol, connection, datapoints, interval),
             self._mqtt_interface(datapoints, mqtt),
         ]
         return model.Submodel(

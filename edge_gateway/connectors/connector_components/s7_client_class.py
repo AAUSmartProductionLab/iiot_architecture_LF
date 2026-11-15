@@ -1,16 +1,24 @@
-"""A thin Siemens S7 client (snap7) with a generic read()."""
+"""A thin Siemens S7 client (snap7) with a generic read() and a polling subscribe()."""
 
 import asyncio
 import logging
-import snap7.util as su
+
 from snap7.client import Client
+from snap7.type import Area
+
+from .decoding import s7_decode, s7_read_size
 from .models import S7ClientConfig, S7ReadRequest
 
 logger = logging.getLogger(__name__)
 
+_AREAS = {"DB": Area.DB, "MK": Area.MK, "PE": Area.PE, "PA": Area.PA}
+
+
 class S7Client:
     """An S7 client. Datapoints carry their address under dp['address']:
-    {area: 'DB', db_number, start, size}; datatype from dp['datatype']."""
+    {area: 'DB'|'MK'|'PE'|'PA', db_number, start, bit, size}; the datatype comes
+    from dp['datatype'] and fixes how many bytes are read (size only matters for
+    'bytes', bit only for 'bool')."""
 
     def __init__(self, config: S7ClientConfig):
         self.host = config.host
@@ -20,12 +28,12 @@ class S7Client:
         self.client = Client()
         self.connected = False
 
-    #----------------------------
+    # ----------------------------
     # Connection / Disconnection
-    #----------------------------
+    # ----------------------------
 
     async def connect(self):
-        # Run connect in thread to avoid blocking
+        # snap7 is blocking: run it in a worker thread.
         await asyncio.to_thread(self.client.connect, self.host, self.rack, self.slot)
         self.connected = await asyncio.to_thread(self.client.get_connected)
         if self.connected:
@@ -34,105 +42,71 @@ class S7Client:
             raise ConnectionError(f"Failed to connect to S7 {self.host}")
 
     async def disconnect(self):
-        try:
-            self._ensure_connected()
-            await asyncio.to_thread(self.client.disconnect)
-        finally:
-            self.connected = False
-        
+        if self.connected:
+            try:
+                await asyncio.to_thread(self.client.disconnect)
+            finally:
+                self.connected = False
+
     def _ensure_connected(self):
         if not self.connected:
             raise RuntimeError("Not connected to S7 PLC")
 
-    #----------------------------
+    # ----------------------------
     # Read
-    #----------------------------
+    # ----------------------------
 
     async def read(self, request: S7ReadRequest):
         self._ensure_connected()
-        
+        size = s7_read_size(request.datatype, request.size)
+        db_number = request.db_number if request.area == "DB" else 0
         raw = await asyncio.to_thread(
-            self.client.db_read,
-            request.db_number,
-            request.start,
-            request.size
+            self.client.read_area, _AREAS[request.area], db_number, request.start, size
         )
-
-        datatype = request.datatype.lower()
-        value = None
-
-        if datatype in ("real", "lreal", "float", "float32", "float64"):
-            value = round(su.get_real(raw, 0), 3)
-        elif datatype in ("int", "int16", "short"):
-            value = su.get_int(raw, 0)
-        elif datatype in ("dint", "int32"):
-            value = su.get_dint(raw, 0)
-        else:
-            logger.warning(f"Unsupported datatype:{datatype}")
-        
-        key = f"DB{request.db_number}.{request.start}"
-
+        value = s7_decode(raw, request.datatype, request.bit)
+        key = f"{request.area}{db_number if request.area == 'DB' else ''}.{request.start}"
         return {key: value}
 
-    #----------------------------
-    # Subscribe
-    #----------------------------
+    # ----------------------------
+    # Subscribe (poll loop)
+    # ----------------------------
 
-async def subscribe(self, datapoints, on_value, interval=2.0, deadband=0.0):
-    """Poll each datapoint every `interval`s and hand the value to on_value.
-    
-    deadband: minimum change in value required to trigger on_value. 
-    Set to 0.0 to disable (publish every reading)."""
-
-    last_values = {}  # track last published value per datapoint
-
-    def _build_request(dp: dict) -> S7ReadRequest | None:
-        addr = dp.get("address", {}) or {}
-        db = addr.get("db_number")
-        if db is None:
-            logger.error(f"S7 missing db_number for datapoint {dp.get('name')}")
-            return None
+    @staticmethod
+    def _request_for(dp: dict) -> S7ReadRequest:
+        addr = dp.get("address") or {}
         return S7ReadRequest(
-            db_number=int(db),
+            area=addr.get("area", "DB"),
+            db_number=int(addr.get("db_number", 1)),
             start=int(addr.get("start", 0)),
-            size=int(addr.get("size", 4)),
+            bit=int(addr.get("bit", 0)),
+            size=int(addr.get("size", 0) or 0),
             datatype=dp.get("datatype", "real"),
         )
 
-    # ── initial read: publish current values right away ──────────────
-    for dp in datapoints:
-        try:
-            request = _build_request(dp)
-            if request is None:
-                continue
-            result = await self.read(request)
-            value = next(iter(result.values())) if result else None
-            if value is not None:
-                on_value(dp, value)
-                last_values[dp.get("name")] = value
-        except Exception as e:
-            logger.error(f"S7 initial read failed for {dp.get('name')}: {e}")
+    async def subscribe(self, datapoints, on_value, interval=2.0):
+        """Read every datapoint once per `interval` seconds and hand each value to
+        on_value(dp, value). Reporting only on change is the Connector's job.
 
-    # ── polling loop ─────────────────────────────────────────────────
-    while True:
+        A datapoint with an invalid address is logged once and skipped; read
+        errors are logged per poll. A lost connection is raised so the Connector
+        reconnects instead of logging errors forever."""
+        requests = []
         for dp in datapoints:
             try:
-                request = _build_request(dp)
-                if request is None:
-                    continue
-                result = await self.read(request)
-                value = next(iter(result.values())) if result else None
-                if value is None:
-                    continue
+                request = self._request_for(dp)
+                s7_read_size(request.datatype, request.size)  # validate datatype up front
+                requests.append((dp, request))
+            except Exception as e:  # noqa: BLE001 - bad config for one datapoint
+                logger.error(f"S7 datapoint {dp.get('name')} skipped: {e}")
 
-                name = dp.get("name")
-                last = last_values.get(name)
-
-                # publish if no previous value, or change exceeds deadband
-                if last is None or abs(value - last) > deadband:
-                    on_value(dp, value)
-                    last_values[name] = value
-
-            except Exception as e:
-                logger.error(f"S7 read failed for {dp.get('name')}: {e}")
-        await asyncio.sleep(interval)
+        while True:
+            for dp, request in requests:
+                try:
+                    result = await self.read(request)
+                    on_value(dp, next(iter(result.values())))
+                except Exception as e:  # noqa: BLE001
+                    if not await asyncio.to_thread(self.client.get_connected):
+                        self.connected = False
+                        raise ConnectionError(f"S7 connection lost: {e}") from e
+                    logger.error(f"S7 read failed for {dp.get('name')}: {e}")
+            await asyncio.sleep(interval)

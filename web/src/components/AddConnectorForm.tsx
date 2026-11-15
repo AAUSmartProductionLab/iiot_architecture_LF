@@ -1,10 +1,47 @@
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { api, type OpcuaNode } from "../api";
+import { OpcuaBrowser } from "./OpcuaBrowser";
 import { COMMON_DATATYPES, defaults, type Field, PROTOCOLS, schemaFor } from "../protocols";
 import { Modal } from "./Modal";
 import { Button } from "./ui";
 
-const STEPS = ["Device", "Connection", "Datapoint", "Review"];
+const STEPS = ["Device", "Connection", "Datapoints", "Review"];
+
+/** Matches the adapter's default (config_model._BaseConnector.interval = 2.0 s). */
+const DEFAULT_INTERVAL_MS = 2000;
+/** Lower bound to protect resource-constrained PLCs from being polled too hard. */
+const MIN_INTERVAL_MS = 50;
+
+/** One datapoint row in the wizard. `address` holds the protocol-specific fields. */
+interface DpDraft {
+  uid: number;
+  name: string;
+  datatype: string;
+  unit: string;
+  local_topic: string;
+  /** True once the user typed a topic themselves, so renaming stops auto-filling it. */
+  topicEdited: boolean;
+  address: Record<string, string>;
+}
+
+let nextUid = 1;
+
+function newDatapoint(datatype: string, address: Record<string, string>): DpDraft {
+  return { uid: nextUid++, name: "", datatype, unit: "", local_topic: "", topicEdited: false, address: { ...address } };
+}
+
+/** Validation message for one datapoint, or null when it is complete. */
+function datapointProblem(dp: DpDraft, fields: Field[], all: DpDraft[]): string | null {
+  const name = dp.name.trim();
+  if (!name) return "name is required";
+  if (all.some((o) => o.uid !== dp.uid && o.name.trim() === name)) return `duplicate name "${name}"`;
+  const topic = dp.local_topic.trim();
+  if (topic && all.some((o) => o.uid !== dp.uid && o.local_topic.trim() === topic))
+    return `duplicate topic "${topic}"`;
+  const missing = fields.find((f) => f.required && !(dp.address[f.key] ?? "").trim());
+  if (missing) return `${missing.label} is required`;
+  return null;
+}
 
 function FieldInput({
   field,
@@ -36,6 +73,7 @@ function FieldInput({
           onChange={(e) => onChange(e.target.value)}
         />
       )}
+      {field.hint && <span className="hint">{field.hint}</span>}
     </div>
   );
 }
@@ -101,9 +139,13 @@ function ConnectorWizard({
   const schema = useMemo(() => schemaFor(protocol), [protocol]);
 
   const [ident, setIdent] = useState({ device_id: "", manufacturer: "", model: "", serial_number: "" });
-  const [dp, setDp] = useState({ name: "", datatype: "float32", unit: "", local_topic: "" });
   const [conn, setConn] = useState<Record<string, string>>(defaults(schema.connection));
-  const [src, setSrc] = useState<Record<string, string>>(defaults(schema.datapoint));
+  // Polling interval in ms (the adapter polls every datapoint once per interval).
+  const [intervalMs, setIntervalMs] = useState(String(DEFAULT_INTERVAL_MS));
+  const intervalNum = Number(intervalMs);
+  const intervalOk = intervalMs.trim() !== "" && Number.isFinite(intervalNum) && intervalNum >= MIN_INTERVAL_MS;
+  const datatypes = schema.datatypes.length ? schema.datatypes : COMMON_DATATYPES;
+  const [dps, setDps] = useState<DpDraft[]>(() => [newDatapoint(datatypes[0], defaults(schema.datapoint))]);
 
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
@@ -115,7 +157,8 @@ function ConnectorWizard({
   // Reset the protocol-specific fields whenever the protocol changes.
   useEffect(() => {
     setConn(defaults(schema.connection));
-    setSrc(defaults(schema.datapoint));
+    const dts = schema.datatypes.length ? schema.datatypes : COMMON_DATATYPES;
+    setDps([newDatapoint(dts[0], defaults(schema.datapoint))]);
   }, [schema]);
 
   // Device id is optional: when left blank it is auto-named, tied to the gateway.
@@ -124,23 +167,50 @@ function ConnectorWizard({
 
   const setIdentF = (k: keyof typeof ident) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setIdent({ ...ident, [k]: e.target.value });
-  const setDpF =
-    (k: keyof typeof dp) =>
-    (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-      const v = e.target.value;
-      const next = { ...dp, [k]: v };
-      // Auto-fill local_topic when name changes (unless user already set one).
-      if (k === "name" && !dp.local_topic) {
-        next.local_topic = `devices/${v}`;
-      }
-      setDp(next);
-    };
+  const updateDp = (uid: number, patch: Partial<DpDraft>) =>
+    setDps((list) =>
+      list.map((d) => {
+        if (d.uid !== uid) return d;
+        const next = { ...d, ...patch };
+        // Auto-fill local_topic from the name until the user edits the topic.
+        if (patch.name !== undefined && !d.topicEdited) {
+          next.local_topic = patch.name.trim() ? `devices/${patch.name.trim()}` : "";
+        }
+        return next;
+      })
+    );
+  const updateAddr = (uid: number, key: string, v: string) =>
+    setDps((list) => list.map((d) => (d.uid === uid ? { ...d, address: { ...d.address, [key]: v } } : d)));
+  // A new datapoint starts from the previous one's datatype and address, since
+  // consecutive datapoints on a device usually differ only in register/offset/node.
+  const addDp = () =>
+    setDps((list) => {
+      const last = list[list.length - 1];
+      return [...list, newDatapoint(last?.datatype ?? datatypes[0], last?.address ?? defaults(schema.datapoint))];
+    });
+  const removeDp = (uid: number) => setDps((list) => (list.length > 1 ? list.filter((d) => d.uid !== uid) : list));
+
+  const addBrowsed = (node: OpcuaNode) => setDps(list => {
+    if (!node.datatype || list.some(d => d.address.node_id === node.node_id)) return list;
+    const base = node.name.replace(/[^A-Za-z0-9_]/g, "_") || "datapoint";
+    let name = base;
+    let suffix = 2;
+    while (list.some(d => d.name === name)) name = `${base}_${suffix++}`;
+    const dp = newDatapoint(node.datatype, { node_id: node.node_id });
+    dp.name = name;
+    dp.local_topic = `devices/${effectiveDeviceId}/${name}`;
+    dp.topicEdited = true;
+    const blank = list.findIndex(d => !d.name && !d.local_topic && (!d.address.node_id || d.address.node_id === "ns=2;s="));
+    return blank >= 0 ? list.map((d, i) => i === blank ? dp : d) : [...list, dp];
+  });
+
+  const problems = dps.map((d) => datapointProblem(d, schema.datapoint, dps));
 
   const canNext =
     step === 1
-      ? !missingRequired(schema.connection, conn)
+      ? !missingRequired(schema.connection, conn) && intervalOk
       : step === 2
-      ? !!dp.name.trim() && !missingRequired(schema.datapoint, src)
+      ? problems.every((p) => p === null)
       : true;
   const isLast = step === STEPS.length - 1;
 
@@ -156,15 +226,14 @@ function ConnectorWizard({
         model: ident.model || undefined,
         serial_number: ident.serial_number || undefined,
         connection: coerce(schema.connection, conn),
-        datapoints: [
-          {
-            name: dp.name,
-            datatype: dp.datatype,
-            unit: dp.unit,
-            local_topic: dp.local_topic,
-            address: coerce(schema.datapoint, src),
-          },
-        ],
+        interval: intervalNum / 1000, // backend/adapter use seconds
+        datapoints: dps.map((d) => ({
+          name: d.name.trim(),
+          datatype: d.datatype,
+          unit: d.unit.trim(),
+          local_topic: d.local_topic.trim(),
+          address: coerce(schema.datapoint, d.address),
+        })),
       })) as { connector?: { device_key?: string } };
       onDone();
       setPhase("checking");
@@ -275,34 +344,80 @@ function ConnectorWizard({
           {schema.connection.map((f) => (
             <FieldInput key={f.key} field={f} value={conn[f.key] ?? ""} onChange={(v) => setConn({ ...conn, [f.key]: v })} />
           ))}
+          <div className="field">
+            <label>Polling interval (ms)</label>
+            <input
+              type="number"
+              min={MIN_INTERVAL_MS}
+              step={50}
+              value={intervalMs}
+              onChange={(e) => setIntervalMs(e.target.value)}
+            />
+            <span className={intervalOk ? "hint" : "hint dp-problem"}>
+              {intervalOk
+                ? "How often every datapoint is read. Shorter catches faster changes but loads the PLC more."
+                : `Must be at least ${MIN_INTERVAL_MS} ms`}
+            </span>
+          </div>
         </div>
       )}
 
       {step === 2 && (
-        <div className="field-grid">
-          <div className="field">
-            <label>Datapoint name<span className="req">*</span></label>
-            <input value={dp.name} onChange={setDpF("name")} placeholder="flow_rate" />
-          </div>
-          <div className="field">
-            <label>Datatype</label>
-            <select value={dp.datatype} onChange={setDpF("datatype")}>
-              {(schema.datatypes.length ? schema.datatypes : COMMON_DATATYPES).map((dt) => (
-                <option key={dt} value={dt}>{dt}</option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Unit</label>
-            <input value={dp.unit} onChange={setDpF("unit")} placeholder="m3/h" />
-          </div>
-          <div className="field">
-            <label>Local topic</label>
-            <input value={dp.local_topic} onChange={setDpF("local_topic")} placeholder="devices/zone1/flow" />
-          </div>
-          {schema.datapoint.map((f) => (
-            <FieldInput key={f.key} field={f} value={src[f.key] ?? ""} onChange={(v) => setSrc({ ...src, [f.key]: v })} />
+        <div className="dp-list">
+          {protocol === "opcua" && <OpcuaBrowser key={`${gatewayId}:${conn.endpoint_url}`}
+            gatewayId={gatewayId} endpoint={conn.endpoint_url}
+            selected={new Set(dps.map(d => d.address.node_id))} onAdd={addBrowsed} />}
+          {dps.map((d, i) => (
+            <div className="dp-card" key={d.uid}>
+              <div className="dp-card-head">
+                <span className="step-no">Datapoint {i + 1}</span>
+                {/* Don't nag about a blank name on a fresh row; flag everything else. */}
+                {problems[i] && d.name.trim() && <span className="dp-problem">{problems[i]}</span>}
+                {dps.length > 1 && (
+                  <Button variant="ghost" className="dp-remove" onClick={() => removeDp(d.uid)}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+              <div className="field-grid">
+                <div className="field">
+                  <label>Name<span className="req">*</span></label>
+                  <input
+                    value={d.name}
+                    onChange={(e) => updateDp(d.uid, { name: e.target.value })}
+                    placeholder="flow_rate"
+                    autoFocus={i === dps.length - 1 && i > 0}
+                  />
+                </div>
+                <div className="field">
+                  <label>Datatype</label>
+                  <select value={d.datatype} onChange={(e) => updateDp(d.uid, { datatype: e.target.value })}>
+                    {datatypes.map((dt) => (
+                      <option key={dt} value={dt}>{dt}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label>Unit</label>
+                  <input value={d.unit} onChange={(e) => updateDp(d.uid, { unit: e.target.value })} placeholder="m3/h" />
+                </div>
+                <div className="field">
+                  <label>Local topic</label>
+                  <input
+                    value={d.local_topic}
+                    onChange={(e) => updateDp(d.uid, { local_topic: e.target.value, topicEdited: true })}
+                    placeholder="devices/zone1/flow"
+                  />
+                </div>
+                {schema.datapoint.map((f) => (
+                  <FieldInput key={f.key} field={f} value={d.address[f.key] ?? ""} onChange={(v) => updateAddr(d.uid, f.key, v)} />
+                ))}
+              </div>
+            </div>
           ))}
+          <Button variant="ghost" onClick={addDp}>
+            + Add datapoint
+          </Button>
         </div>
       )}
 
@@ -321,12 +436,35 @@ function ConnectorWizard({
             {schema.connection.map((f) => (
               <DtDd key={f.key} k={f.label} v={conn[f.key]} />
             ))}
-            <dt>Datapoint</dt><dd>{dp.name}{dp.unit ? ` (${dp.unit})` : ""}</dd>
-            {dp.local_topic && (<><dt>Local topic</dt><dd><code>{dp.local_topic}</code></dd></>)}
-            {schema.datapoint.map((f) => (
-              <DtDd key={f.key} k={f.label} v={src[f.key]} />
-            ))}
+            <dt>Polling interval</dt><dd>{intervalNum} ms</dd>
           </dl>
+          <table className="dp-review">
+            <thead>
+              <tr>
+                <th>Datapoint</th>
+                <th>Type</th>
+                <th>Unit</th>
+                <th>Local topic</th>
+                <th>Address</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dps.map((d) => (
+                <tr key={d.uid}>
+                  <td>{d.name}</td>
+                  <td>{d.datatype}</td>
+                  <td>{d.unit || "—"}</td>
+                  <td><code>{d.local_topic || "—"}</code></td>
+                  <td>
+                    {schema.datapoint
+                      .filter((f) => d.address[f.key])
+                      .map((f) => `${f.label}: ${d.address[f.key]}`)
+                      .join(", ")}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
 

@@ -115,3 +115,19 @@ export function specificAssetIds(shell: SME): { name: string; value: string }[] 
     value: a.value,
   }));
 }
+
+export function historyLinks(submodels: SME[]): { name: string; datatype: string; unit: string; url: string }[] {
+  const sm = submodels.find(s => s.semanticId?.keys?.some((k: SME) => k.value === "https://admin-shell.io/idta/TimeSeries/1/1"));
+  const segments = byId(sm?.submodelElements, "Segments");
+  return (segments?.value || []).flatMap((segment: SME) => {
+    const endpoint = propVal(byId(segment.value, "Endpoint"));
+    const query = propVal(byId(segment.value, "Query"));
+    try {
+      const url = new URL(endpoint);
+      if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) return [];
+      url.search = query;
+      return [{ name: propVal(byId(segment.value, "Datapoint")) || mlpVal(byId(segment.value, "Name")),
+        datatype: propVal(byId(segment.value, "Datatype")), unit: propVal(byId(segment.value, "Unit")), url: url.toString() }];
+    } catch { return []; }
+  });
+}

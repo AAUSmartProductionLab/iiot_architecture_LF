@@ -19,16 +19,17 @@ from .aas.element_factory import AASElementFactory
 from .aas.hierarchical_structures_builder import HierarchicalStructuresBuilder
 from .aas.semantic_ids import SemanticIdFactory
 from .aas.software_nameplate_builder import SoftwareNameplateBuilder
+from .aas.time_series_builder import TimeSeriesBuilder
 from .basyx_client import delete_shell_with_submodels, upsert_shell, upsert_submodel
 
 log = logging.getLogger("registration")
 
 
 def _uns_topic(local_topic: str, uns_prefix: str) -> str:
-    """Mirror the HiveMQ bridge remap exactly.
+    """Mirror the gateway's Mosquitto bridge remap exactly.
 
-    The bridge filter `devices/#` -> destination `<uns_prefix>/{#}` substitutes
-    the FULL local topic for {#}, so `devices/line1/temp` becomes
+    The bridge forwards local `devices/#` to the remote prefix `<uns_prefix>/`,
+    keeping the FULL local topic, so `devices/line1/temp` becomes
     `<uns_prefix>/devices/line1/temp` (the `devices/` segment is kept).
     """
     if not local_topic:
@@ -45,6 +46,7 @@ class RegistrationService:
         self.aid = AssetInterfacesBuilder(sf, ef)
         self.hs = HierarchicalStructuresBuilder(sf, ef)
         self.shell = AASBuilder(sf, ef)
+        self.timeseries = TimeSeriesBuilder(sf, ef)
 
     @staticmethod
     def _gateway_mqtt(manifest: dict) -> dict:
@@ -55,6 +57,8 @@ class RegistrationService:
             "broker_port": m.get("local_broker_port", ""),
             "base_topic": m.get("local_base_topic", ""),
             "uns_prefix": b.get("uns_prefix", ""),
+            "public_broker_url": config.PUBLIC_MQTT_URL or (
+                f"mqtt://{b['server_ip']}:1883" if b.get("server_ip") else ""),
         }
 
     def _enrich_datapoints(self, datapoints: list, mqtt: dict) -> list:
@@ -92,6 +96,7 @@ class RegistrationService:
             mqtt=mqtt,
             protocol=connector.get("protocol", ""),
             connection=connector.get("connection", {}),
+            interval=connector.get("interval"),
         )
         hs = self.hs.build_device(
             dsys,
@@ -101,6 +106,8 @@ class RegistrationService:
         )
         submodels = [nameplate, aid, hs]
         submodel_names = ["Nameplate", "AssetInterfacesDescription", "HierarchicalStructures"]
+        submodels.append(self.timeseries.build(dsys, datapoints=datapoints, api_base=config.public_api_base()))
+        submodel_names.append("TimeSeries")
 
         # Software Nameplate only if the device actually reports SW/firmware.
         fw = connector.get("firmware_version")

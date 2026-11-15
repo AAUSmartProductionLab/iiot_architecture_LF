@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuild + restart the edge-server stack (orchestrator, BaSyx, HiveMQ, ingestor,
+# Rebuild + restart the edge-server stack (orchestrator, BaSyx, Mosquitto, ingestor,
 # TimescaleDB, dashboard) in one step. Data volumes are preserved.
 #
 # mDNS auto-discovery needs host networking (Linux only); it's ON by default. On
@@ -27,7 +27,8 @@ docker compose $BASE build
 echo "==> [3/3] Starting the stack"
 # Safety-net: force-remove any leftover containers that share the fixed
 # container_name values, in case a previous compose down didn't clean up.
-docker rm -f timescale hivemq aas-environment aas-gui 2>/dev/null || true
+# 'hivemq' is removed too: deployments before the switch to Mosquitto ran it on :1883.
+docker rm -f timescale hivemq mqtt-broker aas-environment aas-gui 2>/dev/null || true
 docker compose $BASE $HOST up -d
 
 echo
@@ -40,6 +41,6 @@ Done.
 - Dashboard:        http://localhost:5173
 - AAS viewer:       http://localhost:8082
 - Orchestrator API: http://localhost:8000/api/health
-Data volumes (TimescaleDB, HiveMQ, AAS) are preserved across redeploys; add `-v`
+Data volumes (TimescaleDB) are preserved across redeploys; add `-v`
 to a manual `docker compose down` only if you want to wipe them.
 EOF

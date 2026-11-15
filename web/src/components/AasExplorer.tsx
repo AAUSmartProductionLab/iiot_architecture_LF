@@ -152,6 +152,7 @@ function Rendered({
   const np = aas.nameplate(bundle.submodels);
   const sw = aas.software(bundle.submodels);
   const ifaces = aas.interfaces(bundle.submodels);
+  const history = aas.historyLinks(bundle.submodels);
   const sysId =
     sel.kind === "device" && sel.device.gateway_serial
       ? `${sel.device.gateway_serial}_${sel.device.device_key}`
@@ -180,6 +181,19 @@ function Rendered({
           </dl>
         </section>
       )}
+      {history.length > 0 && <section>
+        <h3>Historical data</h3>
+        <p className="muted">Read stored measurements through the history API. Links request the last hour.
+          Use the source interface below for direct reads, or MQTT for the live stream.</p>
+        <table>
+          <thead><tr><th>Datapoint</th><th>Configured type</th><th>Configured unit</th><th>History</th></tr></thead>
+          <tbody>{history.map(h => <tr key={h.url}>
+            <td><code>{h.name}</code></td><td>{h.datatype || "—"}</td><td>{h.unit || "—"}</td>
+            <td><a href={h.url} target="_blank" rel="noopener noreferrer">Open JSON</a></td>
+          </tr>)}</tbody>
+        </table>
+        <p className="hint">Historical rows retain their recorded units. Missing samples are not filled in.</p>
+      </section>}
       {ifaces.map((iface) => (
         <section key={iface.idShort}>
           <h3>Interface: {iface.protocol}</h3>

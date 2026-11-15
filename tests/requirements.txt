@@ -1,0 +1,9 @@
+# Repo-level tests: unit tests need the gateway + server Python deps; the
+# integration test additionally needs the adapter + simulator deps and a
+# mosquitto binary on PATH (it is skipped otherwise).
+-r ../edge_gateway/requirements.txt
+-r ../edge_gateway/connectors/requirements-adapter.txt
+-r ../edge_server/requirements.txt
+-r ../edge_server/ingestor/requirements.txt
+-r simulators/requirements.txt
+pytest>=8

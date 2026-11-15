@@ -39,6 +39,8 @@ export interface Device {
   device_id: string | null;
   protocol: string | null;
   connection?: Record<string, unknown>;
+  /** Polling interval in seconds; null for connectors provisioned before it was configurable. */
+  interval?: number | null;
   datapoints: Datapoint[];
   device_aas_id: string | null;
 }

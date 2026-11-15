@@ -1,8 +1,8 @@
 """
-This module defines the MqttPublisher class, which is responsible 
-for publishing messages to an MQTT broker. It uses the paho-mqtt 
-library to handle MQTT communication. The class provides methods 
-for connecting to the broker, publishing messages, 
+This module defines the MqttPublisher class, which is responsible
+for publishing messages to an MQTT broker. It uses the paho-mqtt
+library to handle MQTT communication. The class provides methods
+for connecting to the broker, publishing messages,
 and disconnecting from the broker.
 
 Intended usage is a newly initialised connecter per protocol connector.
@@ -26,8 +26,9 @@ class MqttPublisher:
         self.connected = False
 
         # Initialise Client
-        self.client = mqtt.Client(client_id=self.client_id)
-        
+        # Callback API v2: v1 is deprecated in paho-mqtt 2.x.
+        self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=self.client_id)
+
         # Callbacks
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
@@ -38,7 +39,7 @@ class MqttPublisher:
 
     def connect(self):
         """Connect to the MQTT broker."""
-        
+
         if self.connected:
             logger.info("Already connected to MQTT broker.")
             return
@@ -68,22 +69,22 @@ class MqttPublisher:
             # If failure raise exception
             logger.error(f"Failed to disconnect from MQTT broker: {e}")
             raise
-        
-    
-    def on_connect(self, client, userdata, flags, rc):
-        if rc == 0:
+
+
+    def on_connect(self, client, userdata, flags, reason_code, properties):
+        if not reason_code.is_failure:
             self.connected = True
             logger.info(f"Connected to MQTT broker at {self.broker_address}:{self.broker_port}")
         else:
-            logger.error(f"Connection failed with code {rc}.")
+            logger.error(f"Connection failed: {reason_code}.")
 
-    def on_disconnect(self, client, userdata, rc):
+    def on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties):
         self.connected = False
-        if rc == 0:
+        if not reason_code.is_failure:
             logger.info("Disconnected cleanly.")
         else:
-            logger.error(f"Unexpected disconnection with code {rc}.")
-    
+            logger.error(f"Unexpected disconnection: {reason_code}.")
+
     def wait_until_connected(self, timeout=5):
         start = time.time()
         while not self.connected:
@@ -92,7 +93,7 @@ class MqttPublisher:
             time.sleep(0.1)
 
     #------------------------------
-    # Publish 
+    # Publish
     #------------------------------
 
     def publish(self, topic, payload):

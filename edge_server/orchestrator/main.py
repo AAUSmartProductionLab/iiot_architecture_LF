@@ -1,7 +1,7 @@
 """Edge Server Agent FastAPI app.
 
 Starts mDNS discovery + the liveness monitor on startup and exposes the
-dashboard API (see api.py). Run (host dev): uvicorn agent.main:app --port 8000
+dashboard API (see api.py). Run (host dev): uvicorn orchestrator.main:app --port 8000
 (cwd = edge_server/).
 """
 
@@ -27,14 +27,18 @@ async def lifespan(app: FastAPI):
     loop = asyncio.get_running_loop()
     # On every changed manifest, (re)build the gateway's AAS in BaSyx (idempotent).
     disc = Discovery(loop, on_manifest=registration_service.register_gateway)
-    await disc.start()
+    if config.DISCOVERY_ENABLED:
+        await disc.start()
+    else:
+        log.info("mDNS discovery disabled; manual registration remains available")
     monitor = LivenessMonitor(interval=config.LIVENESS_INTERVAL)
     await monitor.start()
     app.state.discovery = disc
     app.state.liveness = monitor
     yield
     await monitor.stop()
-    await disc.stop()
+    if config.DISCOVERY_ENABLED:
+        await disc.stop()
 
 
 app = FastAPI(title="Edge Server Agent", lifespan=lifespan)

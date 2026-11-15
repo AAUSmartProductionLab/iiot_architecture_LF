@@ -1,7 +1,10 @@
-fastapi
-uvicorn[standard]
-zeroconf
-httpx
-paho-mqtt
-pymodbus
-docker
+# Gateway agent. It imports connectors.config_model for validation (pydantic only);
+# the protocol libraries live in the adapter image (connectors/requirements-adapter.txt).
+fastapi>=0.110,<1
+uvicorn[standard]>=0.29,<1
+zeroconf>=0.130,<1
+httpx>=0.27,<1
+docker>=7,<8
+pydantic>=2,<3
+# Read-only OPC UA browsing from the gateway's OT network.
+asyncua>=1.1,<3

@@ -4,10 +4,12 @@ Pydantic data models for the OT adapters.
 Each client takes a typed *Config and each read/write takes a typed *Request, so
 bad parameters fail fast with a clear ValidationError instead of surfacing as an
 obscure protocol error deeper in.
+
+Keep this module free of protocol-library imports: every adapter imports it, so
+an optional dependency here (e.g. pyads for the not-yet-wired ADS client) would
+crash the adapter for all protocols when that library isn't installed.
 """
 
-import pyads.constants
-from enum import Enum
 from typing import Any, Literal
 from pydantic import BaseModel, Field
 
@@ -77,7 +79,7 @@ class ModbusTCPClientConfig(BaseModel):
 
 class ModbusReadRequest(BaseModel):
     type: Literal["coil", "discrete", "holding", "input"]
-    reg_address: int = 1
+    reg_address: int = 0  # 0-based protocol address
     count: int = 1
     retries: int = 2
 
@@ -115,10 +117,10 @@ class S7ClientConfig(BaseModel):
 
 
 class S7ReadRequest(BaseModel):
-    db_number: int
-    start: int
-    size: int
-    datatype: Literal[
-        "real", "lreal", "float", "float32", "float64", "int", "dint", "bytes"
-    ] = "real"
+    area: Literal["DB", "MK", "PE", "PA"] = "DB"
+    db_number: int = 1  # only used for area DB
+    start: int = Field(ge=0)
+    bit: int = Field(default=0, ge=0, le=7)  # only used for datatype bool
+    size: int = 0  # only used for datatype bytes; otherwise derived from datatype
+    datatype: str = "real"  # validated by decoding.s7_canonical
     retries: int = 2

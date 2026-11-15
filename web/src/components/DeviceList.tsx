@@ -56,6 +56,9 @@ export function DeviceList({
                 </div>
                 <div className="row-actions">
                   <ConnState state={status?.state} reason={status?.reason} />
+                  <span className="muted">
+                    polls every {Math.round((d.interval ?? 2) * 1000)} ms
+                  </span>
                 </div>
 
                 <div className="dc-points">

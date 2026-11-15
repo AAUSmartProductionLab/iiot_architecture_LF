@@ -1,5 +1,8 @@
-paho-mqtt
+# Bounded to the major versions the adapters are written and tested against:
+# paho-mqtt 2.x (callback API v2), pymodbus 3.x (slave=/device_id= resolved at
+# runtime), python-snap7 3.0 (read_area/Area API), asyncua 1.x-2.x, pydantic 2.
+paho-mqtt>=2.0,<3
 python-snap7==3.0.0
-pymodbus
-asyncua
-pydantic
+pymodbus>=3.6,<4
+asyncua>=1.1,<3
+pydantic>=2,<3

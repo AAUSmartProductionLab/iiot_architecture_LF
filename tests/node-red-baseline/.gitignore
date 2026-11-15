@@ -1,0 +1,12 @@
+# Node-RED runtime files (this folder is used as the userDir)
+node_modules/
+package-lock.json
+settings.js
+flows.json
+flows_cred.json
+.flows*.json.backup
+.config.*.json
+.config.*.json.backup
+lib/
+# Recreate importable reference flows with generate_flows.py.
+/flows/

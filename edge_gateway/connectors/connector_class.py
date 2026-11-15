@@ -5,7 +5,7 @@ The per-protocol reading lives in the connector_components clients (Modbus, S7,
 OPC UA); this module is just the wiring. Each client exposes an async
 `subscribe(datapoints, on_value, interval)` that polls its own `read` under the
 hood and calls `on_value(dp, value)` for every sample — here that publishes to
-the gateway's local MQTT broker on the datapoint's local topic; the HiveMQ
+the gateway's local MQTT broker on the datapoint's local topic; the Mosquitto
 bridge forwards it to the edge server (UNS).
 
 Adding a protocol = adding a client + one case in `_make_client`.
@@ -106,13 +106,19 @@ class Connector:
         if topic in self._last_values and self._last_values[topic] == value:
             return
         self._last_values[topic] = value
-        payload = json.dumps({"value": value, "ts": time.time()})
+        # default=str: protocol libraries can return non-JSON types (OPC UA
+        # datetimes, LocalizedText, ...); stringify them rather than fail.
+        payload = json.dumps({"value": value, "ts": time.time()}, default=str)
         # Publish JSON {value, ts} straight to the datapoint topic — the shape the
         # server ingestor expects (it json.loads the payload and reads `value`/`ts`,
         # resolving the device via the AID topic map). We go through the publisher's
         # underlying paho client because MqttPublisher.publish() fans a *dict* out to
         # per-key subtopics, which doesn't match that UNS/AID contract.
         if not self.publisher.connected:
+            # paho reconnects in the background; drop (and say so) meanwhile, and
+            # forget the value so it is re-sent once the broker is back.
+            log.warning("MQTT not connected; dropped %s", topic)
+            self._last_values.pop(topic, None)
             return
         info = self.publisher.client.publish(topic, payload, qos=self.publisher.qos)
         info.wait_for_publish()

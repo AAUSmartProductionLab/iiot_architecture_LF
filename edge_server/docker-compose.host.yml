@@ -13,3 +13,7 @@ services:
     networks: !reset null
     environment:
       - BASYX_URL=http://localhost:8081
+      # The service name 'timescale' only resolves on db_network; in host mode the
+      # DB is reached through its published port. Without this the dashboard's
+      # latest values were always empty.
+      - TS_DSN=postgresql://postgres:admin@localhost:5432/postgres

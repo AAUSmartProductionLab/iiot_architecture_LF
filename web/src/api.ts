@@ -1,7 +1,11 @@
 import type { AasBundle, ConnectorStatus, Device, Gateway, Measurement } from "./types";
 
+// The orchestrator runs on the same machine that serves the dashboard, so by
+// default talk to the host the page was loaded from. (A fixed localhost only
+// worked in a browser on the edge server itself.) VITE_API_BASE overrides it.
 export const BASE =
-  (import.meta.env.VITE_API_BASE as string | undefined) || "http://localhost:8000";
+  (import.meta.env.VITE_API_BASE as string | undefined) ||
+  `${window.location.protocol}//${window.location.hostname}:8000`;
 
 async function req<T>(path: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -20,13 +24,34 @@ export interface ProvisionPayload {
   device_id: string;
   protocol: string;
   connection: Record<string, unknown>;
+  /** Polling interval in seconds (adapter default 2.0). */
+  interval?: number;
   datapoints: Record<string, unknown>[];
   manufacturer?: string;
   model?: string;
   serial_number?: string;
 }
 
+export interface OpcuaNode {
+  node_id: string;
+  name: string;
+  node_class: string;
+  datatype: string | null;
+  type_label: string;
+  selectable: boolean;
+}
+
+export interface OpcuaPage {
+  nodes: OpcuaNode[];
+  next_offset: number | null;
+  limit_reached: boolean;
+}
+
 export const api = {
+  browseOpcua: (gatewayId: string, endpoint: string, nodeId: string, offset = 0) =>
+    req<OpcuaPage>(`/api/gateways/${encodeURIComponent(gatewayId)}/opcua/browse`, {
+      method: "POST", body: JSON.stringify({ endpoint_url: endpoint, node_id: nodeId, offset }),
+    }),
   serverInfo: () => req<{ server_ip: string }>("/api/server-info"),
   gateways: () => req<Gateway[]>("/api/gateways"),
   devices: () => req<Device[]>("/api/devices"),

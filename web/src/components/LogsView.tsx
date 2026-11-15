@@ -90,7 +90,7 @@ export function LogsView({
         {gateways.map((g) => {
           const sources: Source[] = [
             { gatewayId: g.gateway_id, kind: "agent", title: "Gateway agent" },
-            { gatewayId: g.gateway_id, kind: "broker", title: "Broker (HiveMQ)" },
+            { gatewayId: g.gateway_id, kind: "broker", title: "Broker (Mosquitto)" },
             ...devices
               .filter((d) => d.gateway_id === g.gateway_id)
               .map((d) => ({

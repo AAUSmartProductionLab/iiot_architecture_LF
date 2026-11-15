@@ -1,124 +1,97 @@
-# iiot_architecture_LF
+# IIoT architecture
 
-Free and open-source IIoT architecture: auto-discover **edge gateways**, adapt industrial
-protocols (Modbus, S7/snap7, OPC UA, USB) to **MQTT**, describe everything as **Asset
-Administration Shells** in Eclipse BaSyx, and ingest the live data into **TimescaleDB** — all
-driven from a **React control board**.
+Connect OPC UA, Modbus TCP and S7 devices through edge gateways, publish readings
+over MQTT, and store them in TimescaleDB. A React dashboard handles provisioning,
+OPC UA tag browsing, device status, AAS inspection and logs.
 
-## Architecture
+The orchestrator generates Asset Administration Shells in Eclipse BaSyx from the
+connector configuration. Each device AAS describes its source interface, live MQTT
+topics and historical-data API. Measurements stay in the database.
 
-```
-EDGE GATEWAY (Linux)                          EDGE SERVER
-────────────────────                          ───────────
-device → adapter ─┐
-                  ├→ HiveMQ ══bridge══════════→ HiveMQ → ingestor → TimescaleDB
-gateway-agent ────┘     (devices/#)              (uns/#)
-     │ mDNS + manifest
-     └──────────────────────────────────────→ orchestrator ⇄ BaSyx (AAS)
-                                                    ↑
-                                              React dashboard
+```text
+Device -> adapter -> gateway MQTT -> server MQTT -> ingestor -> TimescaleDB
+Gateway manifest -> orchestrator -> BaSyx AAS
+                         ^
+                    Web dashboard
 ```
 
-- **Data plane:** adapter → gateway broker → MQTT bridge → server broker → ingestor → TimescaleDB.
-- **Semantic plane:** orchestrator builds each gateway/device AAS in BaSyx. *No live values in the AAS.*
-- **Config plane:** BaSyx submodel events tell the ingestor each topic's device/datapoint/unit.
+## Start
 
-**Ports:** orchestrator `8000`, BaSyx `8081`, aas-gui `8082`, dashboard `5173`, TimescaleDB `5432`,
-MQTT `1883`.
+Use separate gateway and server machines with Docker and Compose v2. For automatic
+discovery, use Linux hosts on the same LAN with mDNS available.
 
-## Prerequisites
-
-- Docker + Docker Compose v2 on both machines, on the **same LAN** (mDNS + bridge need it).
-- A **Windows/macOS** edge server also needs **Python 3.11** (the orchestrator runs on the host for mDNS).
-- On **Linux** (incl. Raspberry Pi), add your user to the `docker` group so the scripts can reach
-  the daemon without `sudo` (otherwise you get `permission denied … /var/run/docker.sock`):
-
-  ```bash
-  sudo usermod -aG docker $USER   # grant docker access
-  newgrp docker                   # apply it to the current shell (or just log out / back in)
-  docker info                     # verify: the "Server" section should now appear
-  ```
-
-## Quick start (scripts)
-
-Each role ships an `install.sh` (clone + build + start) and a `redeploy.sh`
-(rebuild + restart an existing checkout). Both default to **host networking** so
-mDNS auto-discovery works on Linux.
-
-### Edge server
+From a checkout on the **server**, set its reachable addresses:
 
 ```bash
-# one-liner: clone into ~/iiot_architecture_LF, build, start
-curl -fsSL https://raw.githubusercontent.com/AAUSmartProductionLab/iiot_architecture_LF/main/edge_server/install.sh | bash
-
-# from a checkout: rebuild + restart (data volumes preserved)
-cd edge_server && ./redeploy.sh
+cd edge_server
+export SERVER_IP=192.168.1.20  # replace with your server's LAN address
+export PUBLIC_API_BASE_URL="http://${SERVER_IP}:8000"
+export PUBLIC_MQTT_URL="mqtt://${SERVER_IP}:1883"
+./redeploy.sh
 ```
 
-Dashboard → http://localhost:5173 · AAS viewer → http://localhost:8082
-
-### Edge gateway
+From a checkout on the **gateway**:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/AAUSmartProductionLab/iiot_architecture_LF/main/edge_gateway/install.sh | bash
-
-cd edge_gateway && ./redeploy.sh          # rebuild + restart
-cd edge_gateway && ./redeploy.sh --sim    # also (re)build + restart the S7 simulator
+cd edge_gateway
+./redeploy.sh
 ```
 
-The gateway `redeploy.sh` rebuilds the images, removes stale per-connector adapter
-containers, seeds the bridge `config.xml` from its template if missing, clears the
-HiveMQ `DISABLED` marker, and restarts the stack in order (broker → agent).
+Open `http://SERVER_IP:5173`, substituting the actual address:
 
-### Script options
+1. Select the discovered gateway, or use **Register manually**.
+2. Configure its MQTT bridge to the server.
+3. Add a connector and its datapoints. OPC UA supports **Browse tags**.
+4. Check **Devices** for connection status and readings; open **AAS** for data
+   access descriptions and **Logs** for troubleshooting.
 
-| Option | Where | Effect |
-| --- | --- | --- |
-| `USE_HOST_NET=0` | both, env var | Bridge networking instead of host. Use on **Windows/macOS** Docker Desktop (host mode binds the VM, not the LAN). No mDNS → register gateways with the dashboard's **Register manually** button. |
-| `--sim` | gateway `redeploy.sh` | Rebuild + restart the S7 PLC simulator (its own compose project; started after the gateway so it can join `gateway-net`). |
-| `BRANCH` / `TARGET_DIR` / `REPO_URL` | `install.sh`, env vars | Pin a branch, change the install location, or use a fork. |
+Browsing currently uses anonymous OPC UA without transport security. The management
+and history APIs have no built-in authentication; use a trusted test network or
+provide access control at deployment.
 
-Examples: `USE_HOST_NET=0 ./redeploy.sh` · `curl -fsSL <url> | USE_HOST_NET=0 bash`
+For Docker Desktop, use bridge networking and manual gateway registration. In a
+Bash shell, run `USE_HOST_NET=0 ./redeploy.sh`. From PowerShell, run the equivalent
+Compose commands in each role's directory:
 
-The gateway-agent restarts HiveMQ every `BRIDGE_RESTART_HOURS` (default 4) to keep
-the bridge extension's trial alive.
-
-## Use it
-
-In the dashboard: the gateway appears under **Gateways** (auto-discovered, or
-**Register manually**) → **Configure MQTT bridge** (server IP pre-filled) → **Add
-connector** (a wizard: pick protocol, fill fields, provision — it then reports
-whether the connector actually connected). **Devices** shows latest values and
-each connector's connection status; **AAS** renders the full Asset Administration
-Shell plus a network-topology view; **Logs** streams the gateway agent, the
-broker, and per-connector container logs.
-
-## Manual / advanced
-
-Without the scripts — or to run the orchestrator on the host (Windows/macOS dev,
-where containers can't get LAN mDNS):
-
-```bash
-# edge server — containerized
-cd edge_server && docker compose build
-docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d   # Linux (mDNS)
-docker compose up -d                                                     # Windows/macOS (no mDNS)
-
-# edge server — orchestrator on the host (Windows/macOS)
-docker compose up -d timescale hivemq aas-environment aas-gui dashboard timescale-ingestor
-python -m venv .venv && .venv\Scripts\pip install -r requirements.txt
-.venv\Scripts\python -m uvicorn orchestrator.main:app --app-dir . --host 0.0.0.0 --port 8000
-
-# edge gateway — containerized
-cd edge_gateway && docker compose --profile build build
-docker compose -f docker-compose.yaml -f docker-compose.host.yml up -d
-docker compose -p s7-sim -f docker-compose.sim.yml up -d --build   # optional S7 simulator
+```powershell
+# Server
+$env:SERVER_IP = '192.168.1.20'
+$env:PUBLIC_API_BASE_URL = "http://${env:SERVER_IP}:8000"
+$env:PUBLIC_MQTT_URL = "mqtt://${env:SERVER_IP}:1883"
+docker compose up -d --build
+# Gateway (on the other machine)
+docker compose --profile build build
+docker compose up -d
 ```
 
-## Stop
+| Service | Port |
+| --- | --- |
+| Dashboard / orchestrator | 5173 / 8000 |
+| BaSyx API / AAS viewer | 8081 / 8082 |
+| MQTT / TimescaleDB | 1883 / 5432 |
 
-```bash
-cd edge_gateway && docker compose -p s7-sim -f docker-compose.sim.yml down            # if started
-cd edge_gateway && docker compose -f docker-compose.yaml -f docker-compose.host.yml down
-cd edge_server  && docker compose -f docker-compose.yaml -f docker-compose.host.yml down   # add -v to wipe data
-```
+To stop either Linux stack, run
+`docker compose -f docker-compose.yaml -f docker-compose.host.yml down` in its
+directory. Omit the host override for bridge networking. Data volumes are preserved.
+
+## Test and explore
+
+- [Festo simulator and Node-RED reference](tests/simulators/FESTO.md)
+- [Automated tests](tests/README.md) and [data verification](tests/evaluation/README.md)
+- [External history client example](examples/read_device_history.py)
+
+Device AASs expose history links under **Historical data**. Open a link to read
+the last hour of stored readings, or use the example client with a device AAS ID.
+
+## Dashboard
+
+Real UI captures with demonstration data:
+
+![Connected devices](docs/images/devices.png)
+
+![Gateways](docs/images/gateways.png) |
+![Provisioning](docs/images/connector-connection.png) |
+![OPC UA browsing](docs/images/opcua-browser.png) |
+![AAS topology](docs/images/aas-topology.png) |
+![Device AAS and history](docs/images/aas-device.png) |
+![Logs](docs/images/logs.png)

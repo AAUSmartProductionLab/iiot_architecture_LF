@@ -8,8 +8,11 @@
 """
 
 import httpx
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+import logging
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel, Field
 
 from . import config, measurements
 from .aas import ids
@@ -18,6 +21,43 @@ from .registration_service import registration_service
 from .registry import registry
 
 router = APIRouter(prefix="/api")
+
+
+@router.get("/measurements/history")
+def measurement_history(
+    device: str = Query(min_length=1, max_length=512),
+    datapoint: str = Query(min_length=1, max_length=512),
+    start: datetime | None = None,
+    end: datetime | None = None,
+    limit: int = Query(default=1000, ge=1, le=10000),
+    offset: int = Query(default=0, ge=0, le=100000),
+):
+    """Read raw stored samples in [start, end), UTC-aware timestamps required.
+
+    Defaults to the last hour, maximum window 31 days. Ordered by stored time.
+    Follow next_url for pages; late inserts/deletions can change offset pagination.
+    No aggregation, resampling, retention or source-quality guarantees are implied.
+    Empty/unknown series returns an empty records array; outages return 503.
+    """
+    end = end or datetime.now(timezone.utc)
+    start = start or end - timedelta(hours=1)
+    if start.tzinfo is None or end.tzinfo is None:
+        raise HTTPException(status_code=422, detail="start and end must include a timezone")
+    if not start < end or end - start > timedelta(days=31):
+        raise HTTPException(status_code=422, detail="Use start < end and a window of at most 31 days")
+    try:
+        records, more = measurements.history(device, datapoint, start, end, limit, offset)
+    except Exception:
+        logging.getLogger("history").exception("Historical measurements unavailable")
+        raise HTTPException(status_code=503, detail="Historical measurements are temporarily unavailable")
+    next_url = None
+    if more and offset + limit <= 100000:
+        next_url = config.public_api_base() + "/api/measurements/history?" + urlencode({
+            "device": device, "datapoint": datapoint, "start": start.isoformat(), "end": end.isoformat(),
+            "limit": limit, "offset": offset + limit})
+    return {"device": device, "datapoint": datapoint, "start": start.isoformat(), "end": end.isoformat(),
+            "records": records, "has_more": more, "next_url": next_url,
+            "page_limit_reached": more and next_url is None}
 
 
 def _summarise(rec: dict) -> dict:
@@ -97,6 +137,7 @@ async def list_devices():
                     "protocol": c.get("protocol"),
                     # Southbound specs (for the topology view): protocol connection.
                     "connection": c.get("connection", {}),
+                    "interval": c.get("interval"),
                     "datapoints": c.get("datapoints", []),
                     "device_aas_id": ids.aas_id(ids.device_system_id(serial, device_key))
                     if serial and device_key
@@ -150,6 +191,28 @@ class ConfigureReq(BaseModel):
     uns_prefix: str | None = None
 
 
+class OpcuaBrowseReq(BaseModel):
+    endpoint_url: str = Field(min_length=1, max_length=2048)
+    node_id: str = Field(default="i=85", max_length=2048)
+    offset: int = Field(default=0, ge=0, le=5000)
+
+
+@router.post("/gateways/{gateway_id}/opcua/browse")
+async def browse_opcua(gateway_id: str, req: OpcuaBrowseReq):
+    rec = registry.get(gateway_id)
+    if not rec or not rec.get("ip"):
+        raise HTTPException(status_code=404, detail="Unknown gateway")
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            response = await client.post(
+                f"http://{rec['ip']}:{rec['port']}/api/opcua/browse", json=req.model_dump())
+            if response.is_error:
+                raise HTTPException(status_code=response.status_code, detail=response.text)
+            return response.json()
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="Gateway is unreachable while browsing OPC UA")
+
+
 @router.post("/gateways/{gateway_id}/configure")
 async def configure_gateway(gateway_id: str, req: ConfigureReq):
     """Proxy a bridge-IP configuration to the gateway (gateways have no CORS).
@@ -165,7 +228,7 @@ async def configure_gateway(gateway_id: str, req: ConfigureReq):
     payload: dict = {"server_bridge_ip": bridge_ip}
     if req.uns_prefix:
         payload["uns_prefix"] = req.uns_prefix
-    # Configure restarts the HiveMQ broker (~10-15s), so allow a generous timeout.
+    # Configure restarts the gateway's broker, so allow a generous timeout.
     async with httpx.AsyncClient(timeout=45.0) as client:
         try:
             r = await client.post(url, json=payload)
@@ -180,6 +243,8 @@ class ProvisionReq(BaseModel):
     device_id: str
     protocol: str  # modbus-tcp, opcua, s7, usb, …
     connection: dict = {}  # protocol connection params
+    # Polling interval in seconds; None -> the gateway's default (2.0 s).
+    interval: float | None = Field(default=None, ge=0.05)
     datapoints: list = []  # each: {name, datatype, unit, local_topic, address:{…}}
     # Optional real-world device identity (flows into the device Digital Nameplate).
     manufacturer: str | None = None
@@ -193,7 +258,9 @@ async def provision(req: ProvisionReq):
     rec = registry.get(req.gateway_id)
     if not rec:
         raise HTTPException(status_code=404, detail="unknown gateway")
-    device_config = req.model_dump(exclude={"gateway_id"})
+    # exclude_none: unset optional fields (interval, identity) fall back to the
+    # gateway's own defaults instead of being sent as explicit nulls.
+    device_config = req.model_dump(exclude={"gateway_id"}, exclude_none=True)
     try:
         # provision_device also refreshes the cached manifest on `rec`.
         return await registration_service.provision_device(rec, device_config)

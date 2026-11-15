@@ -1,22 +1,16 @@
 services:
-  hivemq:
-    image: hivemq/hivemq4:latest
-    container_name: hivemq
-    hostname: hivemq
+  # Local MQTT broker (Eclipse Mosquitto). Adapters publish devices/<...> here;
+  # the bridge (conf.d/bridge.conf, written by the agent) forwards it to the
+  # edge server under the UNS prefix.
+  mqtt-broker:
+    image: eclipse-mosquitto:2
+    container_name: mqtt-broker
+    hostname: mqtt-broker
     restart: unless-stopped
-    environment:
-      - JAVA_TOOL_OPTIONS=-Djava.rmi.server.hostname=127.0.0.1
-      - HIVEMQ_ALLOW_ALL_CLIENTS=true
-      # Optional: Uncomment if you have a license. Otherwise, it runs in 25-connection trial mode.
-      # - HIVEMQ_LICENSE=your_base64_encoded_license_here
     volumes:
-      - ./broker/conf:/opt/hivemq/conf
-      - ./broker/extensions:/opt/hivemq/extensions
-      - hivemq_data:/opt/hivemq/data
+      - ./broker/config:/mosquitto/config
     ports:
-      - "1883:1883"  # MQTT port
-      - "8083:8083"  # WebSockets port (if configured)
-      - "8080:8080"  # HiveMQ Control Center (Web UI)
+      - "1883:1883"
     networks:
       - gateway-net
 
@@ -37,13 +31,13 @@ services:
     environment:
       - AGENT_PORT=8000
       - IDENTITY_FILE=/data/agent_identity.json
-      - BRIDGE_CONFIG_PATH=/app/broker/extensions/hivemq-bridge-extension/conf/config.xml
-      - HIVEMQ_CONTAINER=hivemq
+      - BRIDGE_CONFIG_PATH=/app/broker/config/conf.d/bridge.conf
+      - BROKER_CONTAINER=mqtt-broker
       # Adapter containers (protocol -> MQTT), launched per connector:
       - ADAPTER_AUTOSTART=true
       - ADAPTER_IMAGE=iiot/connector-adapter
       - ADAPTER_NETWORK=gateway-net
-      - ADAPTER_BROKER_HOST=hivemq
+      - ADAPTER_BROKER_HOST=mqtt-broker
       - ADAPTER_BROKER_PORT=1883
       - ADAPTER_CONFIG_DIR=/app/instances
       - ADAPTER_CONFIG_VOLUME=adapter_configs
@@ -54,12 +48,12 @@ services:
       # - HARDWARE_MODEL=...
       # - FIRMWARE_VERSION=...
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock   # manage adapters + restart hivemq
-      - ./broker:/app/broker                         # edits to bridge config reach hivemq
+      - /var/run/docker.sock:/var/run/docker.sock   # manage adapters + restart the broker
+      - ./broker:/app/broker                         # bridge.conf written here is read by mqtt-broker
       - gateway_identity:/data                        # stable identity across recreation
       - adapter_configs:/app/instances                # per-connector config.json, shared with adapters
     depends_on:
-      - hivemq
+      - mqtt-broker
     networks:
       - gateway-net
 
@@ -74,7 +68,6 @@ services:
     command: ["true"]
 
 volumes:
-  hivemq_data:
   gateway_identity:
   # Explicit name (no project prefix) so the agent can mount it into adapters
   # by the same literal name it uses here.

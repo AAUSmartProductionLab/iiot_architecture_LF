@@ -2,6 +2,9 @@
 
 import os
 import socket
+from urllib.parse import urlsplit
+
+DISCOVERY_ENABLED = os.getenv("DISCOVERY_ENABLED", "true").lower() == "true"
 
 # Eclipse BaSyx v2 AAS Environment base URL (Phase 2+).
 BASYX_URL = os.getenv("BASYX_URL", "http://localhost:8081")
@@ -17,8 +20,8 @@ AGENT_PORT = int(os.getenv("AGENT_PORT", "8000"))
 # Timeout for outbound HTTP (manifest fetch, BaSyx calls).
 HTTP_TIMEOUT = float(os.getenv("HTTP_TIMEOUT", "5.0"))
 
-# TimescaleDB (read-only, for the dashboard's latest-value display). The
-# measurements endpoint degrades to [] if the DB is unreachable.
+# TimescaleDB for latest values and history. Latest tolerates outages with [];
+# history reports 503 so consumers can distinguish outages from empty periods.
 TS_DSN = os.getenv("TS_DSN", "postgresql://postgres:admin@localhost:5432/postgres")
 
 # Liveness health-poll cadence (seconds). User-tunable; default 20s.
@@ -26,10 +29,28 @@ TS_DSN = os.getenv("TS_DSN", "postgresql://postgres:admin@localhost:5432/postgre
 LIVENESS_INTERVAL = float(os.getenv("LIVENESS_INTERVAL", "20"))
 
 # The edge server's own LAN IP = the address gateways should bridge their MQTT to
-# (the server runs HiveMQ). Defaults to auto-detection; override with SERVER_IP
+# (the server runs the central MQTT broker). Defaults to auto-detection; override with SERVER_IP
 # (needed when the orchestrator runs in bridge networking, where auto-detect
 # returns the container IP instead of the host's).
 SERVER_IP = os.getenv("SERVER_IP")
+
+# Addresses external consumers use; never advertise Docker-only service names.
+def _public_url(value: str, schemes: tuple[str, ...]) -> str:
+    if not value:
+        return ""
+    parsed = urlsplit(value)
+    if parsed.scheme not in schemes or not parsed.hostname or parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise ValueError("Public URLs must have a supported scheme and host, without credentials, query or fragment")
+    _ = parsed.port
+    return value.rstrip("/")
+
+
+PUBLIC_API_BASE_URL = _public_url(os.getenv("PUBLIC_API_BASE_URL", ""), ("http", "https"))
+PUBLIC_MQTT_URL = _public_url(os.getenv("PUBLIC_MQTT_URL", ""), ("mqtt", "mqtts", "ws", "wss"))
+
+
+def public_api_base() -> str:
+    return PUBLIC_API_BASE_URL or f"http://{resolve_server_ip()}:{AGENT_PORT}"
 
 
 def resolve_server_ip() -> str:
